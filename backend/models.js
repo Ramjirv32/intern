@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Define Schemas
 const userSchema = new mongoose.Schema({
   name: String,
   email: String,
@@ -48,7 +47,6 @@ const articleSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Create and export models
 module.exports = {
   User: mongoose.model('User', userSchema),
   Group: mongoose.model('Group', groupSchema),
