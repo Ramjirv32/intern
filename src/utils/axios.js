@@ -1,10 +1,20 @@
 import axios from 'axios';
 
+const getApiUrl = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://your-backend-url.vercel.app/api';
+  }
+  return 'http://localhost:5000/api';
+};
+
 const instance = axios.create({
-  baseURL: 'http://localhost:5000/api'
+  baseURL: getApiUrl(),
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
-// Add a request interceptor to add the token to all requests
+// Add request interceptor for auth token
 instance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');

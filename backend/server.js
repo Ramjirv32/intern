@@ -23,8 +23,18 @@ console.log('Environment variables:', {
   PORT: process.env.PORT
 });
 
-// Middleware setup - MUST come before routes
-app.use(cors());
+
+app.use(cors({
+  origin: [
+    'https://your-frontend-domain.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5000',
+    'http://localhost:5001'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(bodyParser.json());
 app.use(express.json());
 
@@ -73,6 +83,19 @@ const mongooseOptions = {
   socketTimeoutMS: 45000,
 };
 
+// Add error handling for MongoDB connection
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('connected', () => {
+  console.log('Connected to MongoDB Atlas');
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('Disconnected from MongoDB Atlas');
+});
+
 // API Routes
 // Posts Routes
 app.get('/api/posts', async (req, res) => {
@@ -99,16 +122,40 @@ app.get('/api/posts', async (req, res) => {
 
 app.post('/api/posts', async (req, res) => {
   try {
+    const { groupId, userId } = req.body;
+
+    // If it's a group post, verify membership
+    if (groupId) {
+      const group = await Group.findById(groupId);
+      if (!group) {
+        return res.status(404).json({ message: 'Group not found' });
+      }
+
+      // Check if user is a member of the group
+      if (!group.members.includes(userId)) {
+        return res.status(403).json({ 
+          message: 'You must be a member of this group to create posts' 
+        });
+      }
+    }
+
     const post = new Post(req.body);
     await post.save();
     
     // Populate the author details before sending response
-    const populatedPost = await Post.findById(post._id).populate({
-      path: 'author',
-      select: 'name email avatar'
-    });
+    const populatedPost = await Post.findById(post._id)
+      .populate({
+        path: 'author',
+        select: 'name email avatar'
+      });
     
-    console.log('Created post:', populatedPost);
+    // If it's a group post, add it to the group's posts array
+    if (groupId) {
+      await Group.findByIdAndUpdate(groupId, {
+        $push: { posts: populatedPost._id }
+      });
+    }
+    
     res.json(populatedPost);
   } catch (error) {
     console.error('Error creating post:', error);
@@ -375,11 +422,10 @@ app.get('/api/users/email/:email', async (req, res) => {
   }
 });
 
-// Configure multer for file uploads
+// Configure multer for local storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadPath = path.join(__dirname, 'uploads', 'images');
-    // Ensure directory exists
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
@@ -390,11 +436,13 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Add file upload endpoint
+// Update upload endpoint
 app.post('/api/upload', upload.single('image'), (req, res) => {
   try {
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ imageUrl });
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    res.json({ imageUrl: req.file.path });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
