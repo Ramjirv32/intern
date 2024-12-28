@@ -14,14 +14,17 @@ import Swal from 'sweetalert2';
 
 const getApiUrl = () => {
   if (process.env.NODE_ENV === 'production') {
-    // Use window.location to get the current domain
-    const domain = window.location.origin;
-    return `${domain}/api`;
+    // Use the actual backend URL in production
+    return 'https://intern-backend.onrender.com/api';  // Replace with your actual backend URL
   }
   return 'http://localhost:5000/api';
 };
 
 const API_URL = getApiUrl();
+
+// Add axios default configuration
+axios.defaults.headers.common['Accept'] = 'application/json';
+axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const handleApiError = (error) => {
   if (error.code === 'ERR_NETWORK') {
@@ -125,10 +128,30 @@ const HomePage = () => {
       try {
         console.log('Fetching posts...');
         const response = await axios.get(`${API_URL}/posts`);
-        console.log('Fetched posts:', response.data);
-        setPosts(response.data);
+        console.log('Posts response:', response);
+        
+        // Check if response is valid JSON and an array
+        if (response.data && typeof response.data === 'object') {
+          let postsData = Array.isArray(response.data) ? response.data : [];
+          const formattedPosts = postsData.map(post => ({
+            _id: post._id || post.id || Math.random().toString(),
+            type: post.type || 'Article',
+            title: post.title || 'Untitled',
+            content: post.content || '',
+            image: post.image || '',
+            author: post.author || { name: 'Anonymous', _id: 'anonymous' },
+            views: typeof post.views === 'number' ? post.views : 0,
+            createdAt: post.createdAt || new Date().toISOString()
+          }));
+          console.log('Formatted posts:', formattedPosts);
+          setPosts(formattedPosts);
+        } else {
+          console.error('Invalid posts data:', response.data);
+          setPosts([]);
+        }
       } catch (error) {
-        handleApiError(error);
+        console.error('Error fetching posts:', error);
+        setPosts([]);
       }
     };
     
@@ -156,34 +179,27 @@ const HomePage = () => {
         const response = await axios.get(`${API_URL}/groups`);
         console.log('Groups response:', response);
         
-        if (response.data) {
-          const formattedGroups = response.data.map(group => ({
-            ...group,
-            members: group.members || [],
-            followers: group.followers || 0,
-            _id: group._id || group.id // Handle both _id and id
+        // Check if response is valid JSON and an array
+        if (response.data && typeof response.data === 'object') {
+          let groupsData = Array.isArray(response.data) ? response.data : [];
+          const formattedGroups = groupsData.map(group => ({
+            _id: group._id || group.id || Math.random().toString(),
+            name: group.name || 'Unnamed Group',
+            image: group.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(group.name || 'Group')}&background=random`,
+            members: Array.isArray(group.members) ? group.members : [],
+            followers: typeof group.followers === 'number' ? group.followers : 0,
+            posts: Array.isArray(group.posts) ? group.posts : []
           }));
           console.log('Formatted groups:', formattedGroups);
           setGroups(formattedGroups);
         } else {
-          console.error('No data in groups response');
-          setError('No groups data available');
+          console.error('Invalid groups data:', response.data);
+          setError('Invalid data received from server');
           setGroups([]);
         }
       } catch (error) {
         console.error('Error fetching groups:', error);
-        if (error.response) {
-          console.error('Error response:', error.response.data);
-          console.error('Error status:', error.response.status);
-          setError(`Error: ${error.response.data.message || 'Failed to fetch groups'}`);
-        } else if (error.request) {
-          console.error('No response received:', error.request);
-          setError('Network error: Could not connect to server');
-        } else {
-          console.error('Error message:', error.message);
-          setError('An unexpected error occurred');
-        }
-        handleApiError(error);
+        setError('Failed to fetch groups. Please try again later.');
         setGroups([]);
       } finally {
         setIsLoading(false);
@@ -405,9 +421,14 @@ const HomePage = () => {
       });
 
       if (result.isConfirmed) {
+        const token = localStorage.getItem('token');
         const response = await axios.post(`${API_URL}/groups/leave`, {
           userId: user._id,
           groupId
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         });
 
         setJoinedGroups(prev => prev.filter(id => id !== groupId));
@@ -418,7 +439,7 @@ const HomePage = () => {
 
         setGroups(prevGroups => 
           prevGroups.map(group => 
-            group._id === groupId ? response.data : group
+            group._id === groupId ? { ...group, members: group.members.filter(m => m._id !== user._id) } : group
           )
         );
 
@@ -435,7 +456,7 @@ const HomePage = () => {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: `Failed to leave group: ${error.message}`
+        text: error.response?.data?.message || 'Failed to leave group. Please try again.'
       });
     }
   };
@@ -446,7 +467,10 @@ const HomePage = () => {
         Swal.fire({
           icon: 'warning',
           title: 'Login Required',
-          text: 'Please login to join groups'
+          text: 'Please login to join groups',
+          showCancelButton: true,
+          confirmButtonText: 'Login',
+          cancelButtonText: 'Cancel'
         });
         return;
       }
@@ -457,11 +481,14 @@ const HomePage = () => {
       }
 
       console.log('Joining group:', groupId);
-      console.log('Current user:', user);
-
+      const token = localStorage.getItem('token');
       const response = await axios.post(`${API_URL}/groups/join`, {
         userId: user._id,
         groupId
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       
       if (response.data) {
@@ -469,32 +496,36 @@ const HomePage = () => {
         setJoinedGroups(prev => [...prev, groupId]);
 
         // Update current group with populated data
-        const groupResponse = await axios.get(`${API_URL}/groups/${groupId}`);
+        const groupResponse = await axios.get(`${API_URL}/groups/${groupId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
         if (groupResponse.data) {
           setCurrentGroup(groupResponse.data);
-        }
-        
-        // Update groups list
-        setGroups(prevGroups => 
-          prevGroups.map(group => 
-            group._id === groupId ? response.data : group
-          )
-        );
+          // Update groups list
+          setGroups(prevGroups => 
+            prevGroups.map(group => 
+              group._id === groupId ? groupResponse.data : group
+            )
+          );
 
-        Swal.fire({
-          icon: 'success',
-          title: 'Joined Group',
-          text: 'You have successfully joined the group',
-          timer: 1500,
-          showConfirmButton: false
-        });
+          Swal.fire({
+            icon: 'success',
+            title: 'Joined Group',
+            text: 'You have successfully joined the group',
+            timer: 1500,
+            showConfirmButton: false
+          });
+        }
       }
     } catch (error) {
       console.error('Error joining group:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: `Failed to join group: ${error.message}`
+        text: error.response?.data?.message || 'Failed to join group. Please try again.'
       });
     }
   };
