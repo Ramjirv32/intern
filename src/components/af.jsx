@@ -14,27 +14,59 @@ import Swal from 'sweetalert2';
 
 const getApiUrl = () => {
   if (process.env.NODE_ENV === 'production') {
-    // Use the actual backend URL in production
-    return 'https://intern-backend.onrender.com/api';  // Replace with your actual backend URL
+    return 'https://intern-backend.onrender.com/api';
   }
   return 'http://localhost:5000/api';
 };
 
 const API_URL = getApiUrl();
 
+// Configure axios defaults
+axios.defaults.baseURL = API_URL;
+axios.defaults.withCredentials = true;
 axios.defaults.headers.common['Accept'] = 'application/json';
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
-// Configure axios for CORS
-axios.defaults.withCredentials = true; 
-axios.interceptors.request.use((config) => {
-  
-  config.headers['Access-Control-Allow-Origin'] = '*';
-  config.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS';
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});
+// Add request interceptor for error handling
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for error handling
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      // Server responded with error
+      console.error('Error response:', error.response.data);
+      console.error('Error status:', error.response.status);
+      
+      if (error.response.status === 401) {
+        // Handle unauthorized access
+        localStorage.removeItem('token');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userName');
+        window.location.href = '/';
+      }
+    } else if (error.request) {
+      // Request made but no response
+      console.error('No response received:', error.request);
+    } else {
+      // Error in request setup
+      console.error('Error message:', error.message);
+    }
+    return Promise.reject(error);
+  }
+);
 
 const handleApiError = (error) => {
   console.error('API Error:', error);
