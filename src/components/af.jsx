@@ -54,6 +54,28 @@ const HomePage = () => {
   const [joinedGroups, setJoinedGroups] = useState([]);
   const [followedGroups, setFollowedGroups] = useState([]);
   const [showFollowing, setShowFollowing] = useState(false);
+  const [canPost, setCanPost] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
+  const requireAuth = (action) => {
+    const isAuthenticated = localStorage.getItem('token');
+    if (!isAuthenticated) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Login Required',
+        text: 'Please sign in to ' + action,
+        showCancelButton: true,
+        confirmButtonText: 'Sign In',
+        cancelButtonText: 'Cancel'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setShowModal(true);
+        }
+      });
+      return false;
+    }
+    return true;
+  };
 
   useEffect(() => {
     console.log('Current posts:', posts);
@@ -233,19 +255,37 @@ const HomePage = () => {
 
   const handleSubmitPost = async (e) => {
     e.preventDefault();
+    
     try {
+      if (!user) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Login Required',
+          text: 'Please login to create posts'
+        });
+        return;
+      }
+
+      if (!canPost) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Join Group Required',
+          text: 'You must join this group to write posts'
+        });
+        return;
+      }
+
       let imageUrl = newPost.image;
 
       if (selectedFile) {
         const formData = new FormData();
         formData.append('image', selectedFile);
-        
+
         const uploadResponse = await axios.post(`${API_URL}/upload`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
-        
+
         imageUrl = uploadResponse.data.imageUrl;
-        console.log('Uploaded image URL:', imageUrl);
       }
 
       const postData = {
@@ -254,32 +294,16 @@ const HomePage = () => {
         content: newPost.content,
         image: imageUrl,
         author: user._id,
-        views: 0
+        group: currentGroup?._id,
+        userId: user._id  // Add this for backend validation
       };
 
-      if (currentGroup?._id) {
-        postData.group = currentGroup._id;
-      }
-
-      console.log('Creating post with data:', postData);
-
-      let response;
-      if (currentGroup?._id) {
-        response = await axios.post(`${API_URL}/groups/${currentGroup._id}/posts`, postData);
-        console.log('Created group post:', response.data);
-        
-        const updatedGroup = await axios.get(`${API_URL}/groups/${currentGroup._id}`);
-        setCurrentGroup(updatedGroup.data);
-      } else {
-        response = await axios.post(`${API_URL}/posts`, postData);
-        console.log('Created regular post:', response.data);
-      }
-
+      const response = await axios.post(`${API_URL}/posts`, postData);
+      
       setPosts(prevPosts => [response.data, ...prevPosts]);
       setShowCreatePost(false);
       setNewPost({ type: 'Article', title: '', content: '', image: '' });
       setSelectedFile(null);
-      setEditingPost(null);
 
       Swal.fire({
         icon: 'success',
@@ -293,8 +317,8 @@ const HomePage = () => {
       console.error('Error submitting post:', error);
       Swal.fire({
         icon: 'error',
-        title: 'Oops...',
-        text: `Failed to create post: ${error.message}`
+        title: 'Error',
+        text: error.response?.data?.message || 'Failed to create post'
       });
     }
   };
@@ -446,15 +470,24 @@ const HomePage = () => {
 
   const handleFollowGroup = async (groupId) => {
     try {
+      if (!user) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Login Required',
+          text: 'Please login to follow groups'
+        });
+        return;
+      }
+
       const response = await axios.post(`${API_URL}/groups/follow`, {
         userId: user._id,
         groupId
       });
 
       setFollowedGroups(prev => [...prev, groupId]);
-      setGroups(prevGroups => 
-        prevGroups.map(group => 
-          group._id === groupId 
+      setGroups(prevGroups =>
+        prevGroups.map(group =>
+          group._id === groupId
             ? { ...group, followers: (group.followers || 0) + 1 }
             : group
         )
@@ -462,8 +495,8 @@ const HomePage = () => {
 
       Swal.fire({
         icon: 'success',
-        title: 'Following Group',
-        text: 'You are now following this group',
+        title: 'Success',
+        text: 'Group followed successfully',
         timer: 1500,
         showConfirmButton: false
       });
@@ -472,7 +505,7 @@ const HomePage = () => {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: `Failed to follow group: ${error.message}`
+        text: 'Failed to follow group'
       });
     }
   };
@@ -485,18 +518,18 @@ const HomePage = () => {
       });
 
       setFollowedGroups(prev => prev.filter(id => id !== groupId));
-      setGroups(prevGroups => 
-        prevGroups.map(group => 
-          group._id === groupId 
-            ? { ...group, followers: Math.max((group.followers || 1) - 1, 0) }
+      setGroups(prevGroups =>
+        prevGroups.map(group =>
+          group._id === groupId
+            ? { ...group, followers: Math.max((group.followers || 0) - 1, 0) }
             : group
         )
       );
 
       Swal.fire({
         icon: 'success',
-        title: 'Unfollowed Group',
-        text: 'You have unfollowed this group',
+        title: 'Success',
+        text: 'Group unfollowed successfully',
         timer: 1500,
         showConfirmButton: false
       });
@@ -505,9 +538,103 @@ const HomePage = () => {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: `Failed to unfollow group: ${error.message}`
+        text: 'Failed to unfollow group'
       });
     }
+  };
+
+  const fetchFollowedGroups = async () => {
+    try {
+      if (!user) return;
+      const response = await axios.get(`${API_URL}/users/${user._id}`);
+      setFollowedGroups(response.data.followedGroups || []);
+    } catch (error) {
+      console.error('Error fetching followed groups:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchFollowedGroups();
+    }
+  }, [user]);
+
+  // Add this effect to check posting permission when group changes
+  useEffect(() => {
+    const checkPostingPermission = () => {
+      if (!currentGroup || !user) {
+        setCanPost(false);
+        return;
+      }
+      
+      const isMember = currentGroup.members?.some(
+        member => member._id === user._id
+      );
+      setCanPost(isMember);
+    };
+
+    checkPostingPermission();
+  }, [currentGroup, user]);
+
+  // Update the Write Post button renderer
+  const renderWritePostButton = () => {
+    if (!user) {
+      return (
+        <button 
+          className="btn btn-primary"
+          onClick={() => requireAuth('write posts')}
+          disabled={true}
+        >
+          Write a Post
+        </button>
+      );
+    }
+
+    if (!currentGroup) {
+      return (
+        <button 
+          className="btn btn-primary"
+          onClick={() => Swal.fire({
+            icon: 'info',
+            title: 'Select a Group',
+            text: 'Please select a group to write a post'
+          })}
+        >
+          Write a Post
+        </button>
+      );
+    }
+
+    if (!canPost) {
+      return (
+        <button 
+          className="btn btn-primary"
+          onClick={() => Swal.fire({
+            icon: 'warning',
+            title: 'Join Group Required',
+            text: 'You must join this group to write posts',
+            showCancelButton: true,
+            confirmButtonText: 'Join Group',
+            cancelButtonText: 'Cancel'
+          }).then((result) => {
+            if (result.isConfirmed) {
+              handleJoinGroup(currentGroup._id);
+            }
+          })}
+        >
+          Write a Post
+        </button>
+      );
+    }
+
+    return (
+      <button 
+        className="btn btn-primary"
+        onClick={() => setShowCreatePost(true)}
+      >
+        Write a Post
+      </button>
+    );
   };
 
   return (
@@ -715,15 +842,7 @@ const HomePage = () => {
           </ul>
           
           <div className="d-flex gap-2">
-            <button 
-              className="btn btn-light dropdown-toggle" 
-              onClick={handleWritePostClick}
-              style={{ 
-                backgroundColor: '#EDEEF0',
-                border: 'none'
-              }}>
-              Write a Post
-            </button>
+            {renderWritePostButton()}
             {currentGroup && (
               <button 
                 className="btn btn-outline-secondary d-flex align-items-center gap-2"
@@ -784,7 +903,7 @@ const HomePage = () => {
                           {post.type === 'Article' && '✍️ Article'}
                           {post.type === 'Education' && '🎓 Education'}
                           {post.type === 'Meetup' && '🗓️ Meetup'}
-                          {post.type === 'Job' && '💼 Job'}
+                          {post.type === 'Job' && '👨‍💼 Job'}
                         </span>
                       </div>
                       <h5 className="card-title d-flex justify-content-between align-items-start">
@@ -937,6 +1056,23 @@ const HomePage = () => {
                               disabled={!group?._id || !user}
                             >
                               Leave Group
+                            </button>
+                          )}
+                          {!followedGroups.includes(group?._id) ? (
+                            <button 
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => group?._id && handleFollowGroup(group._id)}
+                              disabled={!group?._id || !user}
+                            >
+                              Follow
+                            </button>
+                          ) : (
+                            <button 
+                              className="btn btn-sm btn-outline-secondary"
+                              onClick={() => group?._id && handleUnfollowGroup(group._id)}
+                              disabled={!group?._id || !user}
+                            >
+                              Unfollow
                             </button>
                           )}
                         </div>

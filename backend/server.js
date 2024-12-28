@@ -12,8 +12,6 @@ const debug = require('debug')('app:server');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('./middleware/auth');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,7 +23,7 @@ console.log('Environment variables:', {
   PORT: process.env.PORT
 });
 
-// Middleware setup - MUST come before routes
+
 app.use(cors({
   origin: [
     'https://your-frontend-domain.vercel.app',
@@ -124,16 +122,40 @@ app.get('/api/posts', async (req, res) => {
 
 app.post('/api/posts', async (req, res) => {
   try {
+    const { groupId, userId } = req.body;
+
+    // If it's a group post, verify membership
+    if (groupId) {
+      const group = await Group.findById(groupId);
+      if (!group) {
+        return res.status(404).json({ message: 'Group not found' });
+      }
+
+      // Check if user is a member of the group
+      if (!group.members.includes(userId)) {
+        return res.status(403).json({ 
+          message: 'You must be a member of this group to create posts' 
+        });
+      }
+    }
+
     const post = new Post(req.body);
     await post.save();
     
     // Populate the author details before sending response
-    const populatedPost = await Post.findById(post._id).populate({
-      path: 'author',
-      select: 'name email avatar'
-    });
+    const populatedPost = await Post.findById(post._id)
+      .populate({
+        path: 'author',
+        select: 'name email avatar'
+      });
     
-    console.log('Created post:', populatedPost);
+    // If it's a group post, add it to the group's posts array
+    if (groupId) {
+      await Group.findByIdAndUpdate(groupId, {
+        $push: { posts: populatedPost._id }
+      });
+    }
+    
     res.json(populatedPost);
   } catch (error) {
     console.error('Error creating post:', error);
@@ -400,19 +422,15 @@ app.get('/api/users/email/:email', async (req, res) => {
   }
 });
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-// Update storage configuration
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'atg-posts',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif']
+// Configure multer for local storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, 'uploads', 'images');
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    cb(null, `${Date.now()}-${file.originalname}`);
   }
 });
 

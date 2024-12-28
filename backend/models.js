@@ -38,7 +38,8 @@ const groupSchema = new mongoose.Schema({
   image: String,
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   posts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Post' }],
-  followers: { type: Number, default: 0 }
+  followers: { type: Number, default: 0 },
+  followedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 });
 
 const postSchema = new mongoose.Schema({
