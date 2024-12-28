@@ -26,17 +26,38 @@ const API_URL = getApiUrl();
 axios.defaults.headers.common['Accept'] = 'application/json';
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
+// Configure axios for CORS
+axios.defaults.withCredentials = true;  // Enable sending cookies
+axios.interceptors.request.use((config) => {
+  // Add CORS headers to every request
+  config.headers['Access-Control-Allow-Origin'] = '*';
+  config.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS';
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
 const handleApiError = (error) => {
+  console.error('API Error:', error);
+  
   if (error.code === 'ERR_NETWORK') {
     console.error('Network error:', error);
-    // Try alternate port in development only
-    if (process.env.NODE_ENV !== 'production') {
-      localStorage.setItem('apiPort', '5001');
-      console.log('Switching to backup port 5001');
-      window.location.reload();
-    }
+    Swal.fire({
+      icon: 'error',
+      title: 'Connection Error',
+      text: 'Unable to connect to the server. Please try again later.',
+      confirmButtonText: 'OK'
+    });
+    return;
   }
-  console.error('API Error:', error);
+
+  // Show user-friendly error message
+  Swal.fire({
+    icon: 'error',
+    title: 'Error',
+    text: error.response?.data?.message || 'An unexpected error occurred. Please try again.',
+    confirmButtonText: 'OK'
+  });
 };
 
 const HomePage = () => {
@@ -127,11 +148,28 @@ const HomePage = () => {
     const fetchPosts = async () => {
       try {
         console.log('Fetching posts...');
-        const response = await axios.get(`${API_URL}/posts`);
-        console.log('Posts response:', response);
-        
-        // Check if response is valid JSON and an array
-        if (response.data && typeof response.data === 'object') {
+        const response = await axios.get(`${API_URL}/posts`, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        }).catch(error => {
+          if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            console.error('Error response:', error.response.data);
+            console.error('Error status:', error.response.status);
+          } else if (error.request) {
+            // The request was made but no response was received
+            console.error('No response received:', error.request);
+          } else {
+            // Something happened in setting up the request that triggered an Error
+            console.error('Error message:', error.message);
+          }
+          throw error;
+        });
+
+        if (response?.data && typeof response.data === 'object') {
           let postsData = Array.isArray(response.data) ? response.data : [];
           const formattedPosts = postsData.map(post => ({
             _id: post._id || post.id || Math.random().toString(),
@@ -146,11 +184,19 @@ const HomePage = () => {
           console.log('Formatted posts:', formattedPosts);
           setPosts(formattedPosts);
         } else {
-          console.error('Invalid posts data:', response.data);
+          console.error('Invalid posts data:', response?.data);
           setPosts([]);
+          Swal.fire({
+            icon: 'warning',
+            title: 'No Posts Available',
+            text: 'No posts were found.',
+            timer: 2000,
+            showConfirmButton: false
+          });
         }
       } catch (error) {
         console.error('Error fetching posts:', error);
+        handleApiError(error);
         setPosts([]);
       }
     };
@@ -176,11 +222,24 @@ const HomePage = () => {
       setError(null);
       try {
         console.log('Fetching groups from:', `${API_URL}/groups`);
-        const response = await axios.get(`${API_URL}/groups`);
-        console.log('Groups response:', response);
+        const response = await axios.get(`${API_URL}/groups`, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        }).catch(error => {
+          if (error.response) {
+            console.error('Error response:', error.response.data);
+            console.error('Error status:', error.response.status);
+          } else if (error.request) {
+            console.error('No response received:', error.request);
+          } else {
+            console.error('Error message:', error.message);
+          }
+          throw error;
+        });
         
-        // Check if response is valid JSON and an array
-        if (response.data && typeof response.data === 'object') {
+        if (response?.data && typeof response.data === 'object') {
           let groupsData = Array.isArray(response.data) ? response.data : [];
           const formattedGroups = groupsData.map(group => ({
             _id: group._id || group.id || Math.random().toString(),
@@ -193,13 +252,21 @@ const HomePage = () => {
           console.log('Formatted groups:', formattedGroups);
           setGroups(formattedGroups);
         } else {
-          console.error('Invalid groups data:', response.data);
-          setError('Invalid data received from server');
+          console.error('Invalid groups data:', response?.data);
+          setError('No groups available');
           setGroups([]);
+          Swal.fire({
+            icon: 'warning',
+            title: 'No Groups Available',
+            text: 'No groups were found.',
+            timer: 2000,
+            showConfirmButton: false
+          });
         }
       } catch (error) {
         console.error('Error fetching groups:', error);
-        setError('Failed to fetch groups. Please try again later.');
+        setError('Failed to fetch groups');
+        handleApiError(error);
         setGroups([]);
       } finally {
         setIsLoading(false);
