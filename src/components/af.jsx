@@ -22,14 +22,13 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
-// Add axios default configuration
 axios.defaults.headers.common['Accept'] = 'application/json';
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 // Configure axios for CORS
-axios.defaults.withCredentials = true;  // Enable sending cookies
+axios.defaults.withCredentials = true; 
 axios.interceptors.request.use((config) => {
-  // Add CORS headers to every request
+  
   config.headers['Access-Control-Allow-Origin'] = '*';
   config.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS';
   return config;
