@@ -13,6 +13,11 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 
 const getApiUrl = () => {
+  if (process.env.NODE_ENV === 'production') {
+    // Use window.location to get the current domain
+    const domain = window.location.origin;
+    return `${domain}/api`;
+  }
   return 'http://localhost:5000/api';
 };
 
@@ -20,10 +25,13 @@ const API_URL = getApiUrl();
 
 const handleApiError = (error) => {
   if (error.code === 'ERR_NETWORK') {
-    // Try alternate port
-    localStorage.setItem('apiPort', '5001');
-    console.log('Switching to backup port 5001');
-    window.location.reload();
+    console.error('Network error:', error);
+    // Try alternate port in development only
+    if (process.env.NODE_ENV !== 'production') {
+      localStorage.setItem('apiPort', '5001');
+      console.log('Switching to backup port 5001');
+      window.location.reload();
+    }
   }
   console.error('API Error:', error);
 };
@@ -56,6 +64,8 @@ const HomePage = () => {
   const [showFollowing, setShowFollowing] = useState(false);
   const [canPost, setCanPost] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const requireAuth = (action) => {
     const isAuthenticated = localStorage.getItem('token');
@@ -139,18 +149,44 @@ const HomePage = () => {
 
   useEffect(() => {
     const fetchGroups = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
+        console.log('Fetching groups from:', `${API_URL}/groups`);
         const response = await axios.get(`${API_URL}/groups`);
+        console.log('Groups response:', response);
+        
         if (response.data) {
-          setGroups(response.data.map(group => ({
+          const formattedGroups = response.data.map(group => ({
             ...group,
             members: group.members || [],
-            followers: group.followers || 0
-          })));
+            followers: group.followers || 0,
+            _id: group._id || group.id // Handle both _id and id
+          }));
+          console.log('Formatted groups:', formattedGroups);
+          setGroups(formattedGroups);
+        } else {
+          console.error('No data in groups response');
+          setError('No groups data available');
+          setGroups([]);
         }
       } catch (error) {
         console.error('Error fetching groups:', error);
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+          console.error('Error status:', error.response.status);
+          setError(`Error: ${error.response.data.message || 'Failed to fetch groups'}`);
+        } else if (error.request) {
+          console.error('No response received:', error.request);
+          setError('Network error: Could not connect to server');
+        } else {
+          console.error('Error message:', error.message);
+          setError('An unexpected error occurred');
+        }
+        handleApiError(error);
         setGroups([]);
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -902,7 +938,7 @@ const HomePage = () => {
                         <span className="badge text-dark px-0" style={{ background: 'none' }}>
                           {post.type === 'Article' && '✍️ Article'}
                           {post.type === 'Education' && '🎓 Education'}
-                          {post.type === 'Meetup' && '🗓️ Meetup'}
+                          {post.type === 'Meetup' && '🗓�� Meetup'}
                           {post.type === 'Job' && '👨‍💼 Job'}
                         </span>
                       </div>
@@ -1029,7 +1065,17 @@ const HomePage = () => {
             {/* Groups Section */}
             <div className="mb-4">
               <h5>Available Groups</h5>
-              {groups && groups.length > 0 ? (
+              {isLoading ? (
+                <div className="text-center py-3">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="alert alert-danger" role="alert">
+                  {error}
+                </div>
+              ) : groups && groups.length > 0 ? (
                 groups.map(group => (
                   <div key={group?._id || 'fallback-key'} className="card mb-2">
                     <div className="card-body p-2 p-md-3">
