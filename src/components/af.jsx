@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Search, Share, Eye, ChevronDown, LogOut, User, Bell, Settings, MapPin } from 'lucide-react';
+import { Search, Share, Eye, ChevronDown, LogOut, User, Bell, Settings, MapPin, Home, Plus, Users } from 'lucide-react';
 import karma from "../images/karma.png";
 import sara from "../images/sara.png";
 import red from "../images/red.png";
@@ -13,14 +13,11 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 
 const getApiUrl = () => {
-  // You can store this in localStorage after successful connection
   return 'http://localhost:5000/api';
 };
 
 const API_URL = getApiUrl();
-console.log('Current API_URL:', API_URL);
 
-// Add error handling for API calls
 const handleApiError = (error) => {
   if (error.code === 'ERR_NETWORK') {
     // Try alternate port
@@ -31,7 +28,7 @@ const handleApiError = (error) => {
   console.error('API Error:', error);
 };
 
-const Home = () => {
+const HomePage = () => {
   const [user, setUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -385,28 +382,53 @@ const Home = () => {
 
   const handleJoinGroup = async (groupId) => {
     try {
+      if (!user) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Login Required',
+          text: 'Please login to join groups'
+        });
+        return;
+      }
+
+      if (!groupId) {
+        console.error('No group ID provided');
+        return;
+      }
+
+      console.log('Joining group:', groupId);
+      console.log('Current user:', user);
+
       const response = await axios.post(`${API_URL}/groups/join`, {
         userId: user._id,
         groupId
       });
       
-      setJoinedGroups(prev => [...prev, groupId]);
-      setCurrentGroup(response.data);
-      
-      // Update groups list
-      setGroups(prevGroups => 
-        prevGroups.map(group => 
-          group._id === groupId ? response.data : group
-        )
-      );
+      if (response.data) {
+        // Update joined groups state
+        setJoinedGroups(prev => [...prev, groupId]);
 
-      Swal.fire({
-        icon: 'success',
-        title: 'Joined Group',
-        text: 'You have successfully joined the group',
-        timer: 1500,
-        showConfirmButton: false
-      });
+        // Update current group with populated data
+        const groupResponse = await axios.get(`${API_URL}/groups/${groupId}`);
+        if (groupResponse.data) {
+          setCurrentGroup(groupResponse.data);
+        }
+        
+        // Update groups list
+        setGroups(prevGroups => 
+          prevGroups.map(group => 
+            group._id === groupId ? response.data : group
+          )
+        );
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Joined Group',
+          text: 'You have successfully joined the group',
+          timer: 1500,
+          showConfirmButton: false
+        });
+      }
     } catch (error) {
       console.error('Error joining group:', error);
       Swal.fire({
@@ -890,71 +912,32 @@ const Home = () => {
               <h5>Available Groups</h5>
               {groups && groups.length > 0 ? (
                 groups.map(group => (
-                  <div key={group._id} className="card mb-2">
-                    <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-center">
-                        <div>
-                          <h6>{group.name}</h6>
-                          <small className="text-muted">{group.followers || 0} followers</small>
+                  <div key={group?._id || 'fallback-key'} className="card mb-2">
+                    <div className="card-body p-2 p-md-3">
+                      <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
+                        <div className="mb-2 mb-md-0">
+                          <h6 className="mb-1">{group?.name || 'Unnamed Group'}</h6>
+                          <small className="text-muted">
+                            {group?.followers || 0} followers
+                          </small>
                         </div>
-                        <div className="d-flex gap-2">
-                          {!joinedGroups.includes(group._id) ? (
-                            <div className="d-flex gap-2">
-                              <button 
-                                className="btn btn-sm btn-outline-primary"
-                                onClick={() => handleJoinGroup(group._id)}
-                              >
-                                Join Group
-                              </button>
-                              {!followedGroups.includes(group._id) ? (
-                                <button 
-                                  className="btn btn-sm btn-outline-secondary"
-                                  onClick={() => handleFollowGroup(group._id)}
-                                >
-                                  Follow
-                                </button>
-                              ) : (
-                                <button 
-                                  className="btn btn-sm btn-outline-danger"
-                                  onClick={() => handleUnfollowGroup(group._id)}
-                                >
-                                  Unfollow
-                                </button>
-                              )}
-                            </div>
+                        <div className="d-flex gap-2 w-100 w-md-auto justify-content-between justify-content-md-end">
+                          {!joinedGroups.includes(group?._id) ? (
+                            <button 
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => group?._id && handleJoinGroup(group._id)}
+                              disabled={!group?._id || !user}
+                            >
+                              Join Group
+                            </button>
                           ) : (
-                            <>
-                              <button 
-                                className="btn btn-sm btn-outline-danger"
-                                onClick={() => handleLeaveGroup(group._id)}
-                              >
-                                Leave
-                              </button>
-                              {currentGroup?._id === group._id ? (
-                                <button 
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => {
-                                    setNewPost({
-                                      type: 'Article',
-                                      title: '',
-                                      content: '',
-                                      image: '',
-                                      group: group._id
-                                    });
-                                    setShowCreatePost(true);
-                                  }}
-                                >
-                                  Write Post
-                                </button>
-                              ) : (
-                                <button 
-                                  className="btn btn-sm btn-outline-secondary"
-                                  onClick={() => setCurrentGroup(group)}
-                                >
-                                  View Posts
-                                </button>
-                              )}
-                            </>
+                            <button 
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => group?._id && handleLeaveGroup(group._id)}
+                              disabled={!group?._id || !user}
+                            >
+                              Leave Group
+                            </button>
                           )}
                         </div>
                       </div>
@@ -962,7 +945,7 @@ const Home = () => {
                   </div>
                 ))
               ) : (
-                <p className="text-muted">No groups available</p>
+                <p className="text-muted text-center">No groups available</p>
               )}
             </div>
 
@@ -1261,10 +1244,168 @@ const Home = () => {
           transform: translateY(-1px);
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
+
+        /* Responsive styles */
+        @media (max-width: 768px) {
+          /* Container adjustments */
+          .container {
+            padding: 0;
+            margin: 0;
+            max-width: 100%;
+          }
+
+          /* Header adjustments */
+          .navbar {
+            padding: 0.5rem;
+          }
+
+          .navbar-brand img {
+            width: 100px;
+          }
+
+          /* Main content adjustments */
+          .row {
+            margin: 0;
+          }
+
+          .col-md-8, .col-md-4 {
+            padding: 10px;
+            width: 100%;
+          }
+
+          /* Card adjustments */
+          .card {
+            margin-bottom: 1rem;
+            border-radius: 0;
+          }
+
+          .card-body {
+            padding: 1rem;
+          }
+
+          /* Button adjustments */
+          .btn {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+          }
+
+          /* Group list adjustments */
+          .sidebar-search-container {
+            position: static;
+            margin-bottom: 1rem;
+          }
+
+          .sidebar-search-container .position-absolute {
+            position: static !important;
+            box-shadow: none;
+            margin-top: 1rem;
+          }
+
+          /* Modal adjustments */
+          .modal-dialog {
+            margin: 0.5rem;
+            max-width: calc(100% - 1rem);
+          }
+
+          /* Navigation adjustments */
+          .nav-tabs {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+
+          .nav-tabs .nav-link {
+            white-space: nowrap;
+          }
+
+          /* User menu adjustments */
+          .user-menu {
+            right: 0;
+            left: auto;
+            width: 280px;
+          }
+
+          /* Search bar adjustments */
+          .search-container {
+            width: 100%;
+            margin: 0.5rem 0;
+          }
+
+          .search-container input {
+            width: 100%;
+          }
+
+          /* Post content adjustments */
+          .post-image {
+            height: 200px !important;
+          }
+
+          /* Group posts adjustments */
+          .group-posts {
+            margin: 0 -10px;
+          }
+
+          /* User profile section */
+          .user-profile {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+          }
+
+          .user-profile img {
+            margin-bottom: 1rem;
+          }
+
+          /* Action buttons */
+          .action-buttons {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+          }
+
+          .action-buttons .btn {
+            flex: 1;
+            min-width: 120px;
+          }
+
+          /* Following modal */
+          .following-modal {
+            padding: 0 1rem;
+          }
+
+          /* Write post button */
+          .write-post-btn {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 1000;
+            border-radius: 50%;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+          }
+        }
+
+        /* Additional tablet specific adjustments */
+        @media (min-width: 769px) and (max-width: 1024px) {
+          .container {
+            max-width: 95%;
+          }
+
+          .col-md-8 {
+            width: 65%;
+          }
+
+          .col-md-4 {
+            width: 35%;
+          }
+        }
       `}} />
     </div>
   );
 };
 
-export default Home;
+export default HomePage;
 
