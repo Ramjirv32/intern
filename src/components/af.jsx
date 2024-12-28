@@ -41,7 +41,6 @@ axios.interceptors.request.use(
   }
 );
 
-// Add response interceptor for error handling
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
