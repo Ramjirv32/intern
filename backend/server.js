@@ -12,6 +12,8 @@ const debug = require('debug')('app:server');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('./middleware/auth');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,7 +26,17 @@ console.log('Environment variables:', {
 });
 
 // Middleware setup - MUST come before routes
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://your-frontend-domain.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5000',
+    'http://localhost:5001'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(bodyParser.json());
 app.use(express.json());
 
@@ -72,6 +84,19 @@ const mongooseOptions = {
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
 };
+
+// Add error handling for MongoDB connection
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('connected', () => {
+  console.log('Connected to MongoDB Atlas');
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('Disconnected from MongoDB Atlas');
+});
 
 // API Routes
 // Posts Routes
@@ -375,26 +400,31 @@ app.get('/api/users/email/:email', async (req, res) => {
   }
 });
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, 'uploads', 'images');
-    // Ensure directory exists
-    fs.mkdirSync(uploadPath, { recursive: true });
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    cb(null, `${Date.now()}-${file.originalname}`);
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Update storage configuration
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'atg-posts',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif']
   }
 });
 
 const upload = multer({ storage: storage });
 
-// Add file upload endpoint
+// Update upload endpoint
 app.post('/api/upload', upload.single('image'), (req, res) => {
   try {
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ imageUrl });
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    res.json({ imageUrl: req.file.path });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
