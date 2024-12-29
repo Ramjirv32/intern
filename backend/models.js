@@ -61,9 +61,50 @@ const articleSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+const manualRegisterSchema = new mongoose.Schema({
+  firstName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  lastName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+manualRegisterSchema.pre('save', async function(next) {
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  next();
+});
+
+manualRegisterSchema.methods.comparePassword = async function(password) {
+  return bcrypt.compare(password, this.password);
+};
+
+const ManualRegister = mongoose.model('ManualRegister', manualRegisterSchema);
+
 const User = mongoose.model('User', userSchema);
 const Group = mongoose.model('Group', groupSchema);
 const Post = mongoose.model('Post', postSchema);
 const Article = mongoose.model('Article', articleSchema);
 
-module.exports = { User, Group, Post, Article }; 
+module.exports = { User, Group, Post, Article, ManualRegister }; 

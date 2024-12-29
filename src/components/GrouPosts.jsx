@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Share, Eye, Users, Search, ChevronDown, LogOut, User, Bell, Settings, MapPin } from 'lucide-react';
+import { Share, Eye, Users, Search, ChevronDown, LogOut, User, Bell, Settings, MapPin, EyeOff } from 'lucide-react';
 import { FaGoogle, FaFacebookF } from "react-icons/fa";
 import { signInWithGoogle } from '../firebase';
 import SignIn from './SignIn';
@@ -23,10 +23,13 @@ const CreateAccountModal = ({ onVisibilityChange }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    email: '',
     password: '',
     confirmPassword: '',
   });
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleOpen = () => {
     setShowModal(true);
@@ -49,9 +52,74 @@ const CreateAccountModal = ({ onVisibilityChange }) => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Form submitted:", formData);
+    
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Passwords do not match',
+        text: 'Please make sure your passwords match',
+      });
+      return;
+    }
+
+    try {
+      // Send registration request to backend
+      const response = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+
+      // Store token and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userEmail', data.user.email);
+      localStorage.setItem('userName', `${data.user.firstName} ${data.user.lastName}`);
+      
+      // Show success message
+      await Swal.fire({
+        icon: 'success',
+        title: 'Account Created Successfully!',
+        text: 'Please sign in with your credentials',
+        timer: 2000,
+        showConfirmButton: false
+      });
+      
+      // Clear form data
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+      });
+
+      // Switch to sign in view
+      setShowSignIn(true);
+      
+    } catch (error) {
+      console.error('Error during account creation:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Registration Failed',
+        text: error.message || 'Failed to create account'
+      });
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -161,7 +229,18 @@ const CreateAccountModal = ({ onVisibilityChange }) => {
                       </div>
                       <div className="col-12">
                         <input
-                          type="password"
+                          type="email"
+                          name="email"
+                          placeholder="Email"
+                          className="form-control"
+                          value={formData.email}
+                          onChange={handleChange}
+                          required
+                        />
+                      </div>
+                      <div className="col-12 position-relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
                           name="password"
                           placeholder="Password"
                           className="form-control"
@@ -169,10 +248,18 @@ const CreateAccountModal = ({ onVisibilityChange }) => {
                           onChange={handleChange}
                           required
                         />
+                        <button
+                          type="button"
+                          className="btn btn-link position-absolute end-0 top-50 translate-middle-y"
+                          onClick={() => setShowPassword(!showPassword)}
+                          style={{ zIndex: 10, padding: '0.375rem' }}
+                        >
+                          {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                        </button>
                       </div>
-                      <div className="col-12">
+                      <div className="col-12 position-relative">
                         <input
-                          type="password"
+                          type={showConfirmPassword ? "text" : "password"}
                           name="confirmPassword"
                           placeholder="Confirm Password"
                           className="form-control"
@@ -180,6 +267,14 @@ const CreateAccountModal = ({ onVisibilityChange }) => {
                           onChange={handleChange}
                           required
                         />
+                        <button
+                          type="button"
+                          className="btn btn-link position-absolute end-0 top-50 translate-middle-y"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          style={{ zIndex: 10, padding: '0.375rem' }}
+                        >
+                          {showConfirmPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                        </button>
                       </div>
                       <div className="col-12 d-grid">
                         <button type="submit" className="btn btn-primary fw-bold">
@@ -683,7 +778,7 @@ const GroupPosts = () => {
       </div>
 
       {/* Add responsive styles for text */}
-      <style jsx>{`
+      <style>{`
         @media (max-width: 576px) {
           .card-title {
             font-size: 1rem;
@@ -823,6 +918,18 @@ const GroupPosts = () => {
             gap: 1rem !important;
           }
         }
+
+        /* Your styles here */
+        .card {
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        /* Add any other styles you need */
       `}</style>
     </div>
   );

@@ -14,7 +14,7 @@ const CreateAccount = ({ onToggleView, onClose }) => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       localStorage.setItem('userEmail', email);
-      navigate('/');
+      navigate('/signin');
     } catch (error) {
       setError('Error creating account');
     }
@@ -35,7 +35,16 @@ const CreateAccount = ({ onToggleView, onClose }) => {
           </button>
         </div>
 
-        {/* Similar form structure as SignIn but with additional fields */}
+        <div className="mb-3">
+          <input
+            type="email"
+            className="form-control"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
       </div>
     </div>
   );

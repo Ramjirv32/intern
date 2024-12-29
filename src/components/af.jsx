@@ -50,69 +50,6 @@ axios.defaults.withCredentials = true;
 axios.defaults.headers.common['Accept'] = 'application/json';
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
-// Add request interceptor for error handling
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response) {
-      // Server responded with error
-      console.error('Error response:', error.response.data);
-      console.error('Error status:', error.response.status);
-      
-      if (error.response.status === 401) {
-        // Handle unauthorized access
-        localStorage.removeItem('token');
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('userName');
-        window.location.href = '/';
-      }
-    } else if (error.request) {
-      // Request made but no response
-      console.error('No response received:', error.request);
-    } else {
-      // Error in request setup
-      console.error('Error message:', error.message);
-    }
-    return Promise.reject(error);
-  }
-);
-
-const handleApiError = (error) => {
-  console.error('API Error:', error);
-  
-  if (error.code === 'ERR_NETWORK') {
-    console.error('Network error:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Connection Error',
-      text: 'Unable to connect to the server. Please try again later.',
-      confirmButtonText: 'OK'
-    });
-    return;
-  }
-
-  // Show user-friendly error message
-  Swal.fire({
-    icon: 'error',
-    title: 'Error',
-    text: error.response?.data?.message || 'An unexpected error occurred. Please try again.',
-    confirmButtonText: 'OK'
-  });
-};
-
 const HomePage = () => {
   const [user, setUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -143,6 +80,79 @@ const HomePage = () => {
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginData, setLoginData] = useState({
+    email: '',
+    password: ''
+  });
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [registerData, setRegisterData] = useState({
+    name: '',
+    email: '',
+    password: ''
+  });
+  const [signInData, setSignInData] = useState({
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
+  const [manualRegisterData, setManualRegisterData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
+
+  // Setup axios interceptors
+  useEffect(() => {
+    const requestInterceptor = axios.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          // Clear user data on authentication error
+          localStorage.removeItem('token');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('userName');
+          setUser(null);
+          
+          // Show login modal
+          Swal.fire({
+            icon: 'warning',
+            title: 'Session Expired',
+            text: 'Please sign in again',
+            showCancelButton: true,
+            confirmButtonText: 'Sign In',
+            cancelButtonText: 'Cancel'
+          }).then((result) => {
+            if (result.isConfirmed) {
+              setShowLoginModal(true);
+            }
+          });
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Cleanup interceptors on component unmount
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
+  }, []);
 
   const requireAuth = (action) => {
     const isAuthenticated = localStorage.getItem('token');
@@ -156,7 +166,7 @@ const HomePage = () => {
         cancelButtonText: 'Cancel'
       }).then((result) => {
         if (result.isConfirmed) {
-          setShowModal(true);
+          setShowLoginModal(true);
         }
       });
       return false;
@@ -351,6 +361,7 @@ const HomePage = () => {
   };
 
   const handleSignOut = () => {
+    localStorage.removeItem('token');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userName');
     setUser(null);
@@ -824,6 +835,371 @@ const HomePage = () => {
     );
   };
 
+  // Add login handler
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`${API_URL}/auth/login`, loginData);
+      const { token, user } = response.data;
+      
+      // Save token and user data
+      localStorage.setItem('token', token);
+      localStorage.setItem('userEmail', user.email);
+      localStorage.setItem('userName', user.name);
+      
+      setUser(user);
+      setShowLoginModal(false);
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Login Successful',
+        text: `Welcome back, ${user.name}!`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Login Failed',
+        text: error.response?.data?.message || 'Failed to login'
+      });
+    }
+  };
+
+  // Add register handler
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`${API_URL}/auth/register`, registerData);
+      const { token, user } = response.data;
+      
+      // Save token and user data
+      localStorage.setItem('token', token);
+      localStorage.setItem('userEmail', user.email);
+      localStorage.setItem('userName', user.name);
+      
+      setUser(user);
+      setShowLoginModal(false);
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Registration Successful',
+        text: `Welcome, ${user.name}!`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Registration Failed',
+        text: error.response?.data?.message || 'Failed to register'
+      });
+    }
+  };
+
+  // Add login/register modal
+  const renderAuthModal = () => {
+    if (!showLoginModal) return null;
+
+    return (
+      <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="modal-dialog">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">{isRegistering ? 'Create Account' : 'Welcome Back!'}</h5>
+              <button 
+                type="button" 
+                className="btn-close"
+                onClick={() => setShowLoginModal(false)}
+              />
+            </div>
+            <div className="modal-body">
+              {isRegistering ? (
+                <form onSubmit={handleManualRegister}>
+                  <div className="text-center mb-4">
+                    <h6>Create your account</h6>
+                    <p className="text-muted small">
+                      Let's learn, share & inspire each other with our passion for computer engineering. Sign up now ✌️
+                    </p>
+                  </div>
+                  <div className="row mb-3">
+                    <div className="col">
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="First Name"
+                        value={manualRegisterData.firstName}
+                        onChange={(e) => setManualRegisterData({
+                          ...manualRegisterData,
+                          firstName: e.target.value
+                        })}
+                        required
+                      />
+                    </div>
+                    <div className="col">
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Last Name"
+                        value={manualRegisterData.lastName}
+                        onChange={(e) => setManualRegisterData({
+                          ...manualRegisterData,
+                          lastName: e.target.value
+                        })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <input
+                      type="email"
+                      className="form-control"
+                      placeholder="Email"
+                      value={manualRegisterData.email}
+                      onChange={(e) => setManualRegisterData({
+                        ...manualRegisterData,
+                        email: e.target.value
+                      })}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <input
+                      type="password"
+                      className="form-control"
+                      placeholder="Create Password"
+                      value={manualRegisterData.password}
+                      onChange={(e) => setManualRegisterData({
+                        ...manualRegisterData,
+                        password: e.target.value
+                      })}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <input
+                      type="password"
+                      className="form-control"
+                      placeholder="Confirm Password"
+                      value={manualRegisterData.confirmPassword}
+                      onChange={(e) => setManualRegisterData({
+                        ...manualRegisterData,
+                        confirmPassword: e.target.value
+                      })}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary w-100">
+                    Create Account
+                  </button>
+                  <div className="text-center mt-3">
+                    <span className="text-muted">Already have an account?</span>
+                    <button 
+                      type="button" 
+                      className="btn btn-link"
+                      onClick={() => setIsRegistering(false)}
+                    >
+                      Sign In
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleLogin}>
+                  <div className="text-center mb-4">
+                    <h6>Sign in to your account</h6>
+                    <p className="text-muted small">
+                      Welcome back! Please enter your details
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <input
+                      type="email"
+                      className="form-control"
+                      placeholder="Email"
+                      value={loginData.email}
+                      onChange={(e) => setLoginData({...loginData, email: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <input
+                      type="password"
+                      className="form-control"
+                      placeholder="Password"
+                      value={loginData.password}
+                      onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary w-100">
+                    Sign In
+                  </button>
+                  <div className="text-center mt-3">
+                    <span className="text-muted">Don't have an account?</span>
+                    <button 
+                      type="button" 
+                      className="btn btn-link"
+                      onClick={() => setIsRegistering(true)}
+                    >
+                      Create Account
+                    </button>
+                  </div>
+                </form>
+              )}
+              <div className="text-center mt-3">
+                <div className="d-flex align-items-center justify-content-center gap-2">
+                  <hr className="flex-grow-1" />
+                  <span className="text-muted">or continue with</span>
+                  <hr className="flex-grow-1" />
+                </div>
+                <div className="d-flex justify-content-center gap-3 mt-3">
+                  <button className="btn btn-outline-secondary">
+                    <img src="https://img.icons8.com/color/24/000000/google-logo.png" alt="Google" />
+                  </button>
+                  <button className="btn btn-outline-secondary">
+                    <img src="https://img.icons8.com/color/24/000000/facebook-new.png" alt="Facebook" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Add the sign-in handler
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    
+    try {
+      if (signInData.password !== signInData.confirmPassword) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Password Mismatch',
+          text: 'Password and confirm password do not match'
+        });
+        return;
+      }
+
+      const response = await axios.post(`${API_URL}/auth/register`, {
+        email: signInData.email,
+        password: signInData.password,
+        name: signInData.email.split('@')[0] // Default name from email
+      });
+
+      const { token, user } = response.data;
+
+      // Store token and user info
+      localStorage.setItem('token', token);
+      localStorage.setItem('userEmail', user.email);
+      localStorage.setItem('userName', user.name);
+
+      setUser(user);
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Sign In Successful',
+        text: `Welcome ${user.name}!`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+
+      setShowLoginModal(false);
+    } catch (error) {
+      console.error('Sign in error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Sign In Failed',
+        text: error.response?.data?.message || 'Failed to sign in'
+      });
+    }
+  };
+
+  const handleApiError = (error) => {
+    console.error('API Error:', error);
+    
+    if (error.code === 'ERR_NETWORK') {
+      console.error('Network error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Connection Error',
+        text: 'Unable to connect to the server. Please try again later.',
+        confirmButtonText: 'OK'
+      });
+      return;
+    }
+
+    // Show user-friendly error message
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: error.response?.data?.message || 'An unexpected error occurred. Please try again.',
+      confirmButtonText: 'OK'
+    });
+  };
+
+  // Add manual registration handler
+  const handleManualRegister = async (e) => {
+    e.preventDefault();
+    
+    try {
+      if (manualRegisterData.password !== manualRegisterData.confirmPassword) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Password Mismatch',
+          text: 'Password and confirm password do not match'
+        });
+        return;
+      }
+
+      const response = await axios.post(`${API_URL}/auth/manual-register`, {
+        firstName: manualRegisterData.firstName,
+        lastName: manualRegisterData.lastName,
+        email: manualRegisterData.email,
+        password: manualRegisterData.password
+      });
+
+      // Clear the registration form
+      setManualRegisterData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+      });
+
+      // Show success message
+      await Swal.fire({
+        icon: 'success',
+        title: 'Account Created Successfully!',
+        text: 'Please sign in with your email and password',
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      // Pre-fill the login form with the email
+      setLoginData(prev => ({
+        ...prev,
+        email: response.data.user.email,
+        password: ''
+      }));
+
+      // Switch to login form
+      setIsRegistering(false);
+
+    } catch (error) {
+      console.error('Manual registration error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Registration Failed',
+        text: error.response?.data?.message || 'Failed to register'
+      });
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -1089,7 +1465,7 @@ const HomePage = () => {
                         <span className="badge text-dark px-0" style={{ background: 'none' }}>
                           {post.type === 'Article' && '✍️ Article'}
                           {post.type === 'Education' && '🎓 Education'}
-                          {post.type === 'Meetup' && '🗓�� Meetup'}
+                          {post.type === 'Meetup' && '🗓 Meetup'}
                           {post.type === 'Job' && '👨‍💼 Job'}
                         </span>
                       </div>
@@ -1505,6 +1881,8 @@ const HomePage = () => {
           </div>
         </div>
       )}
+
+      {renderAuthModal()}
 
       <style dangerouslySetInnerHTML={{__html: `
         /* Hover effect for nav links */

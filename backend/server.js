@@ -6,7 +6,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const path = require('path');
-const { User, Group, Post, Article } = require('./models');
+const { User, Group, Post, Article, ManualRegister } = require('./models');
 const fs = require('fs');
 const debug = require('debug')('app:server');
 const bcrypt = require('bcryptjs');
@@ -23,6 +23,8 @@ console.log('Environment variables:', {
   PORT: process.env.PORT
 });
 
+// Add at the top with other constants
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:5000', 'http://localhost:5001'],
@@ -133,14 +135,20 @@ const startServer = async () => {
     await connectDB();
     
     const startServerOnPort = (port) => {
-      const server = app.listen(port, () => {
-        console.log(`Server is running on port ${port}`);
+      const portNumber = parseInt(port);
+      if (isNaN(portNumber) || portNumber < 0 || portNumber >= 65536) {
+        console.error('Invalid port number:', port);
+        process.exit(1);
+      }
+
+      const server = app.listen(portNumber, () => {
+        console.log(`Server is running on port ${portNumber}`);
       });
 
       server.on('error', (error) => {
         if (error.code === 'EADDRINUSE') {
-          console.log(`Port ${port} is in use, trying ${port + 1}`);
-          startServerOnPort(port + 1);
+          console.log(`Port ${portNumber} is in use, trying ${portNumber + 1}`);
+          startServerOnPort(portNumber + 1);
         } else {
           console.error('Server error:', error);
           process.exit(1);
@@ -148,7 +156,7 @@ const startServer = async () => {
       });
     };
 
-    startServerOnPort(PORT);
+    startServerOnPort(parseInt(PORT));
 
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -600,10 +608,10 @@ app.post('/api/groups/unfollow', async (req, res) => {
   }
 });
 
-// Add authentication routes
+// Register Route
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { firstName, lastName, email, password } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -613,61 +621,108 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Create new user
     const user = new User({
+      firstName,
+      lastName,
       email,
-      password,
-      name,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`
+      password
     });
 
     await user.save();
-    const token = user.generateAuthToken();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     res.status(201).json({
+      message: 'User registered successfully',
+      token,
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar
-      },
-      token
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email
+      }
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Error registering user' });
   }
 });
 
+// Login Route
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    // Find user
     const user = await User.findOne({ email });
-
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    // Check password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = user.generateAuthToken();
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
     res.json({
+      message: 'Login successful',
+      token,
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar
-      },
-      token
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email
+      }
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'Error logging in' });
   }
 });
 
-// Protect routes that require authentication
-app.use('/api/posts', auth);
-app.use('/api/groups', auth);
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ message: 'Access denied' });
+  }
+
+  try {
+    const verified = jwt.verify(token, JWT_SECRET);
+    req.user = verified;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
+// Protected route example
+app.get('/api/user/profile', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('-password');
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching user profile' });
+  }
+});
+
+// Apply verifyToken middleware to protected routes
+app.use('/api/posts', verifyToken);
+app.use('/api/groups', verifyToken);
+app.use('/api/articles', verifyToken);
 
 // Error handling middleware - MUST come after routes
 app.use((err, req, res, next) => {
@@ -705,6 +760,95 @@ app.post('/api/users', async (req, res) => {
     console.error('POST /api/users - Error:', error);
     res.status(500).json({ 
       message: 'Failed to create user',
+      error: error.message 
+    });
+  }
+});
+
+// Add manual registration routes
+app.post('/api/auth/manual-register', async (req, res) => {
+  try {
+    const { firstName, lastName, email, password } = req.body;
+
+    // Validate input
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Check if user already exists
+    const existingUser = await ManualRegister.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+
+    // Create new user
+    const user = new ManualRegister({
+      firstName,
+      lastName,
+      email,
+      password
+    });
+
+    await user.save();
+
+    res.status(201).json({
+      message: 'Registration successful! Please login.',
+      user: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    console.error('Manual registration error:', error);
+    res.status(500).json({ 
+      message: 'Error during registration', 
+      error: error.message 
+    });
+  }
+});
+
+app.post('/api/auth/manual-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Find user
+    const user = await ManualRegister.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Verify password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET || 'your-secret-key-here',
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    console.error('Manual login error:', error);
+    res.status(500).json({ 
+      message: 'Error during login', 
       error: error.message 
     });
   }
