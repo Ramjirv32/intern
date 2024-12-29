@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Search, Share, Eye, ChevronDown, LogOut, User, Bell, Settings, MapPin, Home, Plus, Users } from 'lucide-react';
+import { Search, Share, Eye, ChevronDown, LogOut, User, Bell, Settings, MapPin, Home, Plus, Users, ThumbsUp, ThumbsDown, MessageCircle } from 'lucide-react';
 import karma from "../images/karma.png";
 import sara from "../images/sara.png";
 import red from "../images/red.png";
@@ -16,7 +16,6 @@ const getApiUrl = () => {
   if (process.env.NODE_ENV === 'production') {
     return 'https://intern-backend.onrender.com/api';
   }
-  // Try different ports in development
   const ports = [5000, 5001, 5002, 5003];
   const checkPort = async (port) => {
     try {
@@ -28,14 +27,11 @@ const getApiUrl = () => {
       return null;
     }
   };
-
-  // Default to 5000 if health check fails
   return 'http://localhost:5000/api';
 };
 
 const API_URL = getApiUrl();
 
-// Add health check endpoint
 axios.get(`${API_URL}/health`)
   .then(response => {
     console.log('Backend health check:', response.data);
@@ -44,7 +40,6 @@ axios.get(`${API_URL}/health`)
     console.error('Backend health check failed:', error);
   });
 
-// Configure axios defaults
 axios.defaults.baseURL = API_URL;
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common['Accept'] = 'application/json';
@@ -104,7 +99,6 @@ const HomePage = () => {
     confirmPassword: ''
   });
 
-  // Setup axios interceptors
   useEffect(() => {
     const requestInterceptor = axios.interceptors.request.use(
       (config) => {
@@ -123,13 +117,11 @@ const HomePage = () => {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Clear user data on authentication error
           localStorage.removeItem('token');
           localStorage.removeItem('userEmail');
           localStorage.removeItem('userName');
           setUser(null);
           
-          // Show login modal
           Swal.fire({
             icon: 'warning',
             title: 'Session Expired',
@@ -147,7 +139,6 @@ const HomePage = () => {
       }
     );
 
-    // Cleanup interceptors on component unmount
     return () => {
       axios.interceptors.request.eject(requestInterceptor);
       axios.interceptors.response.eject(responseInterceptor);
@@ -184,11 +175,9 @@ const HomePage = () => {
     
     const createOrFetchUser = async (email, name) => {
       try {
-        // Try to find existing user
         const response = await axios.get(`${API_URL}/users/email/${email}`);
         setUser(response.data);
       } catch (error) {
-        // If user doesn't exist, create new user
         try {
           const newUser = await axios.post(`${API_URL}/users`, {
             name: name || email.split('@')[0],
@@ -218,15 +207,11 @@ const HomePage = () => {
           }
         }).catch(error => {
           if (error.response) {
-            // The request was made and the server responded with a status code
-            // that falls out of the range of 2xx
             console.error('Error response:', error.response.data);
             console.error('Error status:', error.response.status);
           } else if (error.request) {
-            // The request was made but no response was received
             console.error('No response received:', error.request);
           } else {
-            // Something happened in setting up the request that triggered an Error
             console.error('Error message:', error.message);
           }
           throw error;
@@ -478,7 +463,7 @@ const HomePage = () => {
         image: imageUrl,
         author: user._id,
         group: currentGroup?._id,
-        userId: user._id  // Add this for backend validation
+        userId: user._id
       };
 
       const response = await axios.post(`${API_URL}/posts`, postData);
@@ -525,7 +510,6 @@ const HomePage = () => {
     return imagePath;
   };
 
-  // Add this useEffect to refresh posts after deletion
   useEffect(() => {
     const fetchPosts = async () => {
       try {
@@ -537,7 +521,7 @@ const HomePage = () => {
     };
 
     fetchPosts();
-  }, []); // Empty dependency array means this runs once on component mount
+  }, []);
 
   const handleLeaveGroup = async (groupId) => {
     try {
@@ -623,10 +607,8 @@ const HomePage = () => {
       });
       
       if (response.data) {
-        // Update joined groups state
         setJoinedGroups(prev => [...prev, groupId]);
 
-        // Update current group with populated data
         const groupResponse = await axios.get(`${API_URL}/groups/${groupId}`, {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -635,7 +617,6 @@ const HomePage = () => {
         
         if (groupResponse.data) {
           setCurrentGroup(groupResponse.data);
-          // Update groups list
           setGroups(prevGroups => 
             prevGroups.map(group => 
               group._id === groupId ? groupResponse.data : group
@@ -661,7 +642,6 @@ const HomePage = () => {
     }
   };
 
-  // Add this useEffect to monitor groups state
   useEffect(() => {
     console.log('Current groups:', groups);
   }, [groups]);
@@ -757,7 +737,6 @@ const HomePage = () => {
     }
   }, [user]);
 
-  // Add this effect to check posting permission when group changes
   useEffect(() => {
     const checkPostingPermission = () => {
       if (!currentGroup || !user) {
@@ -774,7 +753,6 @@ const HomePage = () => {
     checkPostingPermission();
   }, [currentGroup, user]);
 
-  // Update the Write Post button renderer
   const renderWritePostButton = () => {
     if (!user) {
       return (
@@ -835,14 +813,12 @@ const HomePage = () => {
     );
   };
 
-  // Add login handler
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
       const response = await axios.post(`${API_URL}/auth/login`, loginData);
       const { token, user } = response.data;
       
-      // Save token and user data
       localStorage.setItem('token', token);
       localStorage.setItem('userEmail', user.email);
       localStorage.setItem('userName', user.name);
@@ -867,14 +843,12 @@ const HomePage = () => {
     }
   };
 
-  // Add register handler
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
       const response = await axios.post(`${API_URL}/auth/register`, registerData);
       const { token, user } = response.data;
       
-      // Save token and user data
       localStorage.setItem('token', token);
       localStorage.setItem('userEmail', user.email);
       localStorage.setItem('userName', user.name);
@@ -899,7 +873,6 @@ const HomePage = () => {
     }
   };
 
-  // Add login/register modal
   const renderAuthModal = () => {
     if (!showLoginModal) return null;
 
@@ -1070,7 +1043,6 @@ const HomePage = () => {
     );
   };
 
-  // Add the sign-in handler
   const handleSignIn = async (e) => {
     e.preventDefault();
     
@@ -1087,12 +1059,11 @@ const HomePage = () => {
       const response = await axios.post(`${API_URL}/auth/register`, {
         email: signInData.email,
         password: signInData.password,
-        name: signInData.email.split('@')[0] // Default name from email
+        name: signInData.email.split('@')[0]
       });
 
       const { token, user } = response.data;
 
-      // Store token and user info
       localStorage.setItem('token', token);
       localStorage.setItem('userEmail', user.email);
       localStorage.setItem('userName', user.name);
@@ -1132,7 +1103,6 @@ const HomePage = () => {
       return;
     }
 
-    // Show user-friendly error message
     Swal.fire({
       icon: 'error',
       title: 'Error',
@@ -1141,7 +1111,6 @@ const HomePage = () => {
     });
   };
 
-  // Add manual registration handler
   const handleManualRegister = async (e) => {
     e.preventDefault();
     
@@ -1162,7 +1131,6 @@ const HomePage = () => {
         password: manualRegisterData.password
       });
 
-      // Clear the registration form
       setManualRegisterData({
         firstName: '',
         lastName: '',
@@ -1171,7 +1139,6 @@ const HomePage = () => {
         confirmPassword: ''
       });
 
-      // Show success message
       await Swal.fire({
         icon: 'success',
         title: 'Account Created Successfully!',
@@ -1180,14 +1147,12 @@ const HomePage = () => {
         showConfirmButton: false
       });
 
-      // Pre-fill the login form with the email
       setLoginData(prev => ({
         ...prev,
         email: response.data.user.email,
         password: ''
       }));
 
-      // Switch to login form
       setIsRegistering(false);
 
     } catch (error) {
@@ -1200,9 +1165,21 @@ const HomePage = () => {
     }
   };
 
+  const handleLike = (postId) => {
+    console.log(`Liking post ${postId}`);
+  };
+
+  const handleUnlike = (postId) => {
+    console.log(`Unliking post ${postId}`);
+  };
+
+  const handleShowComments = (postId) => {
+    console.log(`Showing comments for post ${postId}`);
+  };
+
+
   return (
     <div>
-      {/* Header */}
       <nav className="navbar navbar-light bg-white py-2" style={{ borderBottom: '1px solid #E0E0E0' }}>
         <div className="container">
           <Link to="/" className="navbar-brand">
@@ -1222,7 +1199,6 @@ const HomePage = () => {
               />
               <Search className="position-absolute" style={{ left: '15px', top: '50%', transform: 'translateY(-50%)' }} />
               
-              {/* Search Results Dropdown */}
               {showSearchResults && (
                 <div className="position-absolute w-100 bg-white rounded-3 mt-1" 
                      style={{ 
@@ -1314,8 +1290,6 @@ const HomePage = () => {
                         className="dropdown-item d-flex align-items-center gap-2 px-3 py-2"
                         onClick={() => {
                           setShowUserMenu(false);
-                          // Add navigation to profile page if needed
-                          // navigate('/profile');
                         }}
                       >
                         <User size={16} />
@@ -1323,14 +1297,14 @@ const HomePage = () => {
                       </button>
                       <button 
                         className="dropdown-item d-flex align-items-center gap-2 px-3 py-2"
-                        onClick={() => {/* Add settings handler */}}
+                        onClick={() => {}}
                       >
                         <Settings size={16} />
                         Settings
                       </button>
                       <button 
                         className="dropdown-item d-flex align-items-center gap-2 px-3 py-2"
-                        onClick={() => {/* Add notifications handler */}}
+                        onClick={() => {}}
                       >
                         <Bell size={16} />
                         Notifications
@@ -1352,7 +1326,6 @@ const HomePage = () => {
         </div>
       </nav>
 
-      {/* Navigation Tabs */}
       <div className="container mt-3">
         <div className="d-flex justify-content-between align-items-center">
           <ul className="nav nav-tabs" style={{ border: 'none' }}>
@@ -1419,14 +1392,12 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Posts Section */}
       <div className="container mt-4">
         <div className="row">
           <div className="col-md-8">
             {posts && posts.length > 0 ? (
               posts.map(post => (
                 <div key={post._id} className="position-relative">
-                  {/* Add Edit/Delete buttons container */}
                   <div className="position-absolute top-0 end-0 m-2 d-flex gap-2" style={{ zIndex: 1000 }}>
                     {user && user._id === post.author._id && (
                       <>
@@ -1446,7 +1417,6 @@ const HomePage = () => {
                     )}
                   </div>
 
-                  {/* Post Card */}
                   <div className="card mb-4">
                     {post.image && (
                       <div 
@@ -1491,8 +1461,15 @@ const HomePage = () => {
                         </div>
                         <div className="d-flex align-items-center">
                           <div className="d-flex align-items-center me-4">
-                            <Eye size={18} className="me-2" />
-                            <span className="text-muted">{post.views || 0} views</span>
+                            <button className="btn btn-link" onClick={() => handleLike(post._id)}>
+                              <ThumbsUp size={18} /> Like ({post.likes?.length || 0})
+                            </button>
+                            <button className="btn btn-link" onClick={() => handleUnlike(post._id)}>
+                              <ThumbsDown size={18} /> Unlike
+                            </button>
+                            <button className="btn btn-link" onClick={() => handleShowComments(post._id)}>
+                              <MessageCircle size={18} /> Comment ({post.comments?.length || 0})
+                            </button>
                           </div>
                           <button className="btn" style={{ background: '#F1F3F5', padding: '8px 12px' }}>
                             <Share size={18} />
@@ -1510,7 +1487,6 @@ const HomePage = () => {
             )}
           </div>
 
-          {/* Sidebar */}
           <div className="col-md-4">
             <div className="location-input mb-4">
               <div className="input-group">
@@ -1527,7 +1503,6 @@ const HomePage = () => {
               </small>
             </div>
 
-            {/* Add new sidebar search with groups */}
             <div className="sidebar-search-container position-relative mb-4">
               <div className="position-relative">
                 <input
@@ -1589,7 +1564,6 @@ const HomePage = () => {
               )}
             </div>
 
-            {/* Groups Section */}
             <div className="mb-4">
               <h5>Available Groups</h5>
               {isLoading ? (
@@ -1658,7 +1632,6 @@ const HomePage = () => {
               )}
             </div>
 
-            {/* Current Group Section */}
             {currentGroup && joinedGroups.includes(currentGroup._id) && (
               <div className="mb-4">
                 <div className="d-flex justify-content-between align-items-center">
@@ -1689,7 +1662,6 @@ const HomePage = () => {
                   Write Post in {currentGroup.name}
                 </button>
                 
-                {/* Display group posts */}
                 <div className="group-posts mt-3">
                   {currentGroup.posts?.map(post => (
                     <div key={post._id} className="card mb-3">
@@ -1856,264 +1828,23 @@ const HomePage = () => {
                         <div className="card-body">
                           <div className="d-flex justify-content-between align-items-center">
                             <div>
-                              <h6>{group.name}</h6>
-                              <small className="text-muted">
-                                {group.followers || 0} followers
-                              </small>
+                              <h6 className="mb-0">{group.name}</h6>
+                              <small className="text-muted">{group.followers} followers</small>
                             </div>
-                            <button 
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => handleUnfollowGroup(group._id)}
-                            >
-                              Unfollow
-                            </button>
+                            <button className="btn btn-sm btn-outline-secondary" onClick={() => handleUnfollowGroup(group._id)}>Unfollow</button>
                           </div>
                         </div>
                       </div>
                     ))
                 ) : (
-                  <p className="text-muted text-center">
-                    You're not following any groups yet
-                  </p>
+                  <p className="text-muted text-center">You are not following any groups yet.</p>
                 )}
               </div>
             </div>
           </div>
         </div>
       )}
-
       {renderAuthModal()}
-
-      <style dangerouslySetInnerHTML={{__html: `
-        /* Hover effect for nav links */
-        .nav-link:hover {
-          color: #000 !important;
-          transition: color 0.3s ease;
-        }
-
-        /* Hover effect for buttons */
-        .btn:hover {
-          opacity: 0.9;
-          transform: translateY(-1px);
-          transition: all 0.2s ease;
-        }
-
-        /* Hover effect for cards */
-        .card {
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        
-        .card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-
-        /* Hover effect for dropdown items */
-        .dropdown-item {
-          transition: background-color 0.2s ease;
-        }
-
-        .dropdown-item:hover {
-          background-color: #f8f9fa;
-        }
-
-        /* Hover effect for share and view buttons */
-        .btn-light:hover {
-          background-color: #e9ecef;
-        }
-
-        /* Hover effect for group items */
-        .search-container .d-flex:hover,
-        .sidebar-search-container .d-flex:hover {
-          background-color: #f8f9fa;
-          transition: background-color 0.2s ease;
-        }
-
-        /* Hover effect for three dots menu */
-        .btn-link:hover {
-          color: #0056b3;
-          transform: scale(1.1);
-          transition: all 0.2s ease;
-        }
-
-        /* Hover effect for location input */
-        .form-control:hover {
-          border-color: #80bdff;
-          box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
-          transition: all 0.2s ease;
-        }
-
-        /* Hover effect for user menu */
-        .user-menu-button:hover {
-          background-color: #f8f9fa;
-          border-radius: 8px;
-          transition: background-color 0.2s ease;
-        }
-
-        /* Hover effect for follow buttons */
-        .btn-outline-primary:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        /* Responsive styles */
-        @media (max-width: 768px) {
-          /* Container adjustments */
-          .container {
-            padding: 0;
-            margin: 0;
-            max-width: 100%;
-          }
-
-          /* Header adjustments */
-          .navbar {
-            padding: 0.5rem;
-          }
-
-          .navbar-brand img {
-            width: 100px;
-          }
-
-          /* Main content adjustments */
-          .row {
-            margin: 0;
-          }
-
-          .col-md-8, .col-md-4 {
-            padding: 10px;
-            width: 100%;
-          }
-
-          /* Card adjustments */
-          .card {
-            margin-bottom: 1rem;
-            border-radius: 0;
-          }
-
-          .card-body {
-            padding: 1rem;
-          }
-
-          /* Button adjustments */
-          .btn {
-            padding: 0.375rem 0.75rem;
-            font-size: 0.875rem;
-          }
-
-          /* Group list adjustments */
-          .sidebar-search-container {
-            position: static;
-            margin-bottom: 1rem;
-          }
-
-          .sidebar-search-container .position-absolute {
-            position: static !important;
-            box-shadow: none;
-            margin-top: 1rem;
-          }
-
-          /* Modal adjustments */
-          .modal-dialog {
-            margin: 0.5rem;
-            max-width: calc(100% - 1rem);
-          }
-
-          /* Navigation adjustments */
-          .nav-tabs {
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-
-          .nav-tabs .nav-link {
-            white-space: nowrap;
-          }
-
-          /* User menu adjustments */
-          .user-menu {
-            right: 0;
-            left: auto;
-            width: 280px;
-          }
-
-          /* Search bar adjustments */
-          .search-container {
-            width: 100%;
-            margin: 0.5rem 0;
-          }
-
-          .search-container input {
-            width: 100%;
-          }
-
-          /* Post content adjustments */
-          .post-image {
-            height: 200px !important;
-          }
-
-          /* Group posts adjustments */
-          .group-posts {
-            margin: 0 -10px;
-          }
-
-          /* User profile section */
-          .user-profile {
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-          }
-
-          .user-profile img {
-            margin-bottom: 1rem;
-          }
-
-          /* Action buttons */
-          .action-buttons {
-            flex-wrap: wrap;
-            gap: 0.5rem;
-          }
-
-          .action-buttons .btn {
-            flex: 1;
-            min-width: 120px;
-          }
-
-          /* Following modal */
-          .following-modal {
-            padding: 0 1rem;
-          }
-
-          /* Write post button */
-          .write-post-btn {
-            position: fixed;
-            bottom: 1rem;
-            right: 1rem;
-            z-index: 1000;
-            border-radius: 50%;
-            width: 56px;
-            height: 56px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-          }
-        }
-
-        /* Additional tablet specific adjustments */
-        @media (min-width: 769px) and (max-width: 1024px) {
-          .container {
-            max-width: 95%;
-          }
-
-          .col-md-8 {
-            width: 65%;
-          }
-
-          .col-md-4 {
-            width: 35%;
-          }
-        }
-      `}} />
     </div>
   );
 };
