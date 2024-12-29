@@ -86,9 +86,8 @@ app.post('/api/posts/:id/unlike', async (req, res) => {
 
 app.post('/posts/:id/comments', async (req, res) => {
   try {
-    const { id } = req.params;  // Get postId from the URL parameter
+    const { id } = req.params;  
 
-    // Find the post by ID and populate the author details in comments
     const post = await Post.findById(id).populate('comments.text', 'name');
 
     if (!post) {
