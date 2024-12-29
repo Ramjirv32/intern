@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Search, Share, Eye, ChevronDown, LogOut, User, Bell, Settings, MapPin, Home, Plus, Users, ThumbsUp, ThumbsDown, MessageCircle } from 'lucide-react';
+import { Oval } from 'react-loader-spinner';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import { v4 as uuidv4 } from 'uuid';
 
 const getApiUrl = () => {
   if (process.env.NODE_ENV === 'production') {
@@ -20,8 +22,10 @@ const getApiUrl = () => {
       return null;
     }
   };
-  return 'http://localhost:4000/api';
+  return 'http://localhost:5000/api';
 };
+const postId = uuidv4(); 
+
 
 const API_URL = getApiUrl();
 
@@ -67,6 +71,7 @@ const HomePage = () => {
   const [canPost, setCanPost] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [ll, setLl] = useState(false);
   const [error, setError] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginData, setLoginData] = useState({
@@ -1024,7 +1029,7 @@ const HomePage = () => {
       </div>
     );
   };
-
+const API_URL2='http://localhost:4000'
   const handleSignIn = async (e) => {
     e.preventDefault();
     
@@ -1147,9 +1152,15 @@ const HomePage = () => {
     }
   };
 
+
+
+
+
+  
+
   const handleLike = async (postId) => {
     try {
-      const response = await axios.post(`${API_URL}/posts/${postId}/like`, { userId: user._id });
+      const response = await axios.post(`${API_URL2}/posts/${postId}/like`, { userId: user._id });
       setLikes(prevLikes => ({ ...prevLikes, [postId]: response.data.likes }));
     } catch (error) {
       console.error("Error liking post:", error);
@@ -1163,7 +1174,7 @@ const HomePage = () => {
 
   const handleUnlike = async (postId) => {
     try {
-      const response = await axios.post(`${API_URL}/posts/${postId}/unlike`, { userId: user._id });
+      const response = await axios.post(`${API_URL2}/posts/${postId}/unlike`, { userId: user._id });
       setLikes(prevLikes => ({ ...prevLikes, [postId]: response.data.likes }));
     } catch (error) {
       console.error("Error unliking post:", error);
@@ -1174,31 +1185,50 @@ const HomePage = () => {
       });
     }
   };
-
   const fetchComments = async (postId) => {
+    setLl(true);
     try {
-      const response = await axios.get(`${API_URL}/posts/${postId}/comments`);
-      setComments(prevComments => ({ ...prevComments, [postId]: response.data }));
+      const response = await axios.get(`${API_URL2}/posts/${postId}/comments`);
+      console.log("Fetched comments:", response.data);  // Log the response data
+      setComments(response.data);
     } catch (error) {
-      console.error("Error fetching comments:", error);
+      console.error("Error fetching comments:", error);  // Log the error object
       Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'Failed to fetch comments'
       });
+    } finally {
+      setLl(false);
     }
   };
+  
+
+  // Use effect to fetch comments when postId changes
+  useEffect(() => {
+    if (postId) {
+      fetchComments(postId);
+    }
+  }, [postId]);
+
+  
+  
 
   const handleCommentSubmit = async (postId, commentText) => {
     try {
-      const response = await axios.post(`${API_URL}/posts/${postId}/comments`, {
+      // Send the comment to the backend
+      const response = await axios.post(`${API_URL2}/posts/comments`, {
+        postId: postId,
         text: commentText,
-        author: user._id
       });
-      setComments(prevComments => ({
-        ...prevComments,
-        [postId]: [...(prevComments[postId] || []), response.data]
-      }));
+  
+      // If comment is successfully added, update the comments in the state
+      if (response.status === 201) {
+        setComments(prevComments => ({
+          ...prevComments,
+          [postId]: [...(prevComments[postId] || []), response.data], // Add the new comment
+        }));
+      }
     } catch (error) {
       console.error("Error submitting comment:", error);
       Swal.fire({
@@ -1208,6 +1238,8 @@ const HomePage = () => {
       });
     }
   };
+  
+
 
   return (
     <div>
@@ -1322,116 +1354,116 @@ const HomePage = () => {
                         onClick={() => {
                           setShowUserMenu(false);
                         }}
-                      >
+                        >
                         <User size={16} />
                         My Profile
-                      </button>
-                      <button 
+                        </button>
+                        <button 
                         className="dropdown-item d-flex align-items-center gap-2 px-3 py-2"
                         onClick={() => {}}
-                      >
+                        >
                         <Settings size={16} />
                         Settings
-                      </button>
-                      <button 
+                        </button>
+                        <button 
                         className="dropdown-item d-flex align-items-center gap-2 px-3 py-2"
                         onClick={() => {}}
-                      >
+                        >
                         <Bell size={16} />
                         Notifications
-                      </button>
-                      <div className="dropdown-divider"></div>
-                      <button 
+                        </button>
+                        <div className="dropdown-divider"></div>
+                        <button 
                         className="dropdown-item d-flex align-items-center gap-2 px-3 py-2 text-danger"
                         onClick={handleSignOut}
-                      >
+                        >
                         <LogOut size={16} />
                         Sign Out
-                      </button>
+                        </button>
+                      </div>
+                      </div>
+                    )}
                     </div>
+                  )}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </nav>
+                </div>
+                </nav>
 
-      <div className="container mt-3">
-        <div className="d-flex justify-content-between align-items-center">
-          <ul className="nav nav-tabs" style={{ border: 'none' }}>
-            <li className="nav-item">
-              <a className="nav-link active" href="#all" 
-                 style={{ 
-                   border: 'none', 
-                   borderBottom: '2px solid #000',
-                   color: '#000'
-                 }}>
-                All Posts(32)
-              </a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="#article" 
-                 style={{ 
-                   border: 'none',
-                   color: '#8E8E8E'
-                 }}>
-                Article
-              </a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="#event" 
-                 style={{ 
-                   border: 'none',
-                   color: '#8E8E8E'
-                 }}>
-                Event
-              </a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="#education" 
-                 style={{ 
-                   border: 'none',
-                   color: '#8E8E8E'
-                 }}>
-                Education
-              </a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="#job" 
-                 style={{ 
-                   border: 'none',
-                   color: '#8E8E8E'
-                 }}>
-                Job
-              </a>
-            </li>
-          </ul>
-          
-          <div className="d-flex gap-2">
-            {renderWritePostButton()}
-            {currentGroup && (
-              <button 
-                className="btn btn-outline-secondary d-flex align-items-center gap-2"
-                onClick={() => handleLeaveGroup(currentGroup._id)}
-              >
-                <span>↩</span>
-                Leave Group
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+                <div className="container mt-3">
+                <div className="d-flex justify-content-between align-items-center">
+                  <ul className="nav nav-tabs" style={{ border: 'none' }}>
+                  <li className="nav-item">
+                    <a className="nav-link active" href="#all" 
+                     style={{ 
+                       border: 'none', 
+                       borderBottom: '2px solid #000',
+                       color: '#000'
+                     }}>
+                    All Posts(32)
+                    </a>
+                  </li>
+                  <li className="nav-item">
+                    <a className="nav-link" href="#article" 
+                     style={{ 
+                       border: 'none',
+                       color: '#8E8E8E'
+                     }}>
+                    Article
+                    </a>
+                  </li>
+                  <li className="nav-item">
+                    <a className="nav-link" href="#event" 
+                     style={{ 
+                       border: 'none',
+                       color: '#8E8E8E'
+                     }}>
+                    Event
+                    </a>
+                  </li>
+                  <li className="nav-item">
+                    <a className="nav-link" href="#education" 
+                     style={{ 
+                       border: 'none',
+                       color: '#8E8E8E'
+                     }}>
+                    Education
+                    </a>
+                  </li>
+                  <li className="nav-item">
+                    <a className="nav-link" href="#job" 
+                     style={{ 
+                       border: 'none',
+                       color: '#8E8E8E'
+                     }}>
+                    Job
+                    </a>
+                  </li>
+                  </ul>
+                  
+                  <div className="d-flex gap-2">
+                  {renderWritePostButton()}
+                  {currentGroup && (
+                    <button 
+                    className="btn btn-outline-secondary d-flex align-items-center gap-2"
+                    onClick={() => handleLeaveGroup(currentGroup._id)}
+                    >
+                    <span>↩</span>
+                    Leave Group
+                    </button>
+                  )}
+                  </div>
+                </div>
+                </div>
 
-      <div className="container mt-4">
-        <div className="row">
-          <div className="col-md-8">
-            {posts && posts.length > 0 ? (
-              posts.map(post => (
-                <div key={post._id} className="position-relative">
-                  <div className="position-absolute top-0 end-0 m-2 d-flex gap-2" style={{ zIndex: 1000 }}>
-                    {user && user._id === post.author._id && (
-                      <>
+                <div className="container mt-4">
+                <div className="row">
+                  <div className="col-md-8">
+                  {posts && posts.length > 0 ? (
+                    posts.map(post => (
+                    <div key={post._id} className="position-relative">
+                      <div className="position-absolute top-0 end-0 m-2 d-flex gap-2" style={{ zIndex: 1000 }}>
+                      {user && user._id === post.author._id && (
+                        <>
                         <button 
                           className="btn btn-sm btn-outline-primary"
                           onClick={() => handlePostAction('edit', post._id)}
@@ -1444,13 +1476,13 @@ const HomePage = () => {
                         >
                           Delete
                         </button>
-                      </>
-                    )}
-                  </div>
+                        </>
+                      )}
+                      </div>
 
-                  <div className="card mb-4">
-                    {post.image && (
-                      <div 
+                      <div className="card mb-4">
+                      {post.image && (
+                        <div 
                         style={{ 
                           height: '220px',
                           backgroundImage: `url(${getImageUrl(post.image)})`,
@@ -1459,74 +1491,96 @@ const HomePage = () => {
                           borderTopLeftRadius: '4px',
                           borderTopRightRadius: '4px'
                         }}
-                      />
-                    )}
-                    <div className="card-body">
-                      <div className="d-flex align-items-center mb-2">
+                        />
+                      )}
+                      <div className="card-body">
+                        <div className="d-flex align-items-center mb-2">
                         <span className="badge text-dark px-0" style={{ background: 'none' }}>
                           {post.type === 'Article' && '✍️ Article'}
                           {post.type === 'Education' && '🎓 Education'}
                           {post.type === 'Meetup' && '🗓 Meetup'}
                           {post.type === 'Job' && '👨‍💼 Job'}
                         </span>
-                      </div>
-                      <h5 className="card-title d-flex justify-content-between align-items-start">
+                        </div>
+                        <h5 className="card-title d-flex justify-content-between align-items-start">
                         <span style={{ fontSize: '22px', fontWeight: '600' }}>{post.title}</span>
-                      </h5>
-                      <p className="card-text text-muted" style={{ fontSize: '15px' }}>
+                        </h5>
+                        <p className="card-text text-muted" style={{ fontSize: '15px' }}>
                         {post.content}
-                      </p>
-                      <div className="d-flex justify-content-between align-items-center mt-4">
+                        </p>
+                        <div className="d-flex justify-content-between align-items-center mt-4">
                         <div className="d-flex align-items-center">
                           <img 
-                            src={getImageUrl(post.author.avatar)}
-                            alt={post.author.name} 
-                            className="rounded-circle me-2" 
-                            width="48" 
-                            height="48"
-                            style={{ objectFit: 'cover' }}
+                          src={getImageUrl(post.author.avatar)}
+                          alt={post.author.name} 
+                          className="rounded-circle me-2" 
+                          width="48" 
+                          height="48"
+                          style={{ objectFit: 'cover' }}
                           />
                           <div>
-                            <div style={{ fontWeight: '600' }}>{post.author.name}</div>
+                          <div style={{ fontWeight: '600' }}>{post.author.name}</div>
                           </div>
                         </div>
+
+                        
                         <div className="d-flex align-items-center">
                           <div className="d-flex align-items-center me-4">
-                            <button className="btn btn-link" onClick={() => handleLike(post._id)}>
-                              <ThumbsUp size={18} /> Like ({likes[post._id]?.length || 0})
-                            </button>
-                            <button className="btn btn-link" onClick={() => handleUnlike(post._id)}>
-                              <ThumbsDown size={18} /> Unlike
-                            </button>
-                            <button className="btn btn-link" onClick={() => fetchComments(post._id)}>
-                              <MessageCircle size={18} /> Comments ({comments[post._id]?.length || 0})
-                            </button>
-                          </div>
+                            
+                          <button className="btn btn-link" onClick={() => handleLike(postId)}>
+                            <ThumbsUp size={18} /> Like ({likes[postId]?.length || 0})
+                          </button>
+                          <button className="btn btn-link" onClick={() => handleUnlike(postId)}>
+                            <ThumbsDown size={18} /> Unlike
+                          </button>
+                          <div>
+      <h3>Comments</h3>
+      {Array.isArray(comments) && comments.length > 0 ? (
+  <ul>
+    {comments.map((comment) => (
+      <li key={comment._id}>
+        <strong>{comment.author?.name || 'Anonymous'}</strong>
+        <p>{comment.text}</p>
+      </li>
+    ))}
+  </ul>
+) : (
+  <p>No comments yet.</p>
+)}
+
+    </div>
+
+            </div>
                           <button className="btn" style={{ background: '#F1F3F5', padding: '8px 12px' }}>
-                            <Share size={18} />
+                          <Share size={18} />
                           </button>
                         </div>
-                      </div>
-                      {comments[post._id] && (
+                        </div>
+                        {comments[post._id] && (
                         <div className="mt-3">
                           <h6>Comments</h6>
                           {comments[post._id].map(comment => (
-                            <div key={comment._id} className="mb-2">
-                              <strong>{comment.author.name}: </strong>
-                              {comment.text}
-                            </div>
+                          <div key={comment._id} className="mb-2">
+                            <strong>{comment.author.name}: </strong>
+                            {comment.text}
+                          </div>
                           ))}
-                          <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const commentText = e.target.elements.comment.value;
-                            handleCommentSubmit(post._id, commentText);
-                            e.target.reset();
-                          }}>
-                            <div className="input-group">
-                              <input type="text" name="comment" className="form-control" placeholder="Write a comment..." required />
-                              <button type="submit" className="btn btn-primary">Post</button>
-                            </div>
-                          </form>
+             <form onSubmit={(e) => {
+    e.preventDefault();
+    const commentText = e.target.elements.comment.value;
+    const postId = uuidv4(); 
+    handleCommentSubmit(postId, commentText);
+    e.target.reset();
+  }}>
+    <div className="input-group">
+      <input type="text" name="comment" className="form-control" placeholder="Write a comment..." required />
+      <button type="submit" className="btn btn-primary">Post</button>
+    </div>
+  </form>
+
+
+
+
                         </div>
                       )}
                     </div>
