@@ -1,18 +1,17 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
 
 const app = express();
-const PORT = 9000;
+const PORT =  4000;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://ramji:vikas@cluster0.ln4g5.mongodb.net/test?retryWrites=true&w=majority&appName=Cluster0';
 
-app.use(cors('*','http://localhost:5001/Home'));
+app.use(cors("*"));
 app.use(express.json());
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('Connected to MongoDB'))
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('MongoDB Atlas connected'))
   .catch(err => console.error('MongoDB connection error:', err));
 
 const commentSchema = new mongoose.Schema({
@@ -44,6 +43,15 @@ app.get('/api/comments', async (req, res) => {
   }
 });
 
+app.get('/api/comments/count', async (req, res) => {
+  try {
+    const count = await Comment.countDocuments();
+    res.json({ count });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 app.post('/api/comments/:id/like', async (req, res) => {
   try {
     const comment = await Comment.findById(req.params.id);
@@ -52,21 +60,23 @@ app.post('/api/comments/:id/like', async (req, res) => {
     }
     comment.likes += 1;
     await comment.save();
-    res.json(comment);
+    res.json({ likes: comment.likes });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-app.post('/api/comments/:id/unlike', async (req, res) => {
+app.post('/api/comments/:id/dislike', async (req, res) => {
   try {
     const comment = await Comment.findById(req.params.id);
     if (!comment) {
       return res.status(404).json({ message: 'Comment not found' });
     }
-    comment.likes = Math.max(comment.likes - 1, 0);
+    if (comment.likes > 0) {
+      comment.likes -= 1;
+    }
     await comment.save();
-    res.json(comment);
+    res.json({ likes: comment.likes });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

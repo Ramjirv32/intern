@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Search, Share, Eye, ChevronDown, LogOut, User, Bell, Settings, MapPin, Home, Plus, Users, ThumbsUp, ThumbsDown, MessageCircle } from 'lucide-react';
+import karma from "../images/karma.png";
+import sara from "../images/sara.png";
+import red from "../images/red.png";
+import j from "../images/j.png";
+import m from "../images/m.png";
+import door from "../images/door.png";
+import car from "../images/car.png";
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
@@ -20,7 +27,7 @@ const getApiUrl = () => {
       return null;
     }
   };
-  return 'http://localhost:4000/api';
+  return 'http://localhost:5000/api';
 };
 
 const API_URL = getApiUrl();
@@ -93,6 +100,7 @@ const HomePage = () => {
   });
   const [likes, setLikes] = useState({});
   const [comments, setComments] = useState({});
+
 
   useEffect(() => {
     const requestInterceptor = axios.interceptors.request.use(
@@ -509,6 +517,19 @@ const HomePage = () => {
     return imagePath;
   };
 
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/posts`);
+        setPosts(response.data);
+      } catch (error) {
+        console.error('Error fetching posts:', error);
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
   const handleLeaveGroup = async (groupId) => {
     try {
       const result = await Swal.fire({
@@ -628,6 +649,10 @@ const HomePage = () => {
     }
   };
 
+  useEffect(() => {
+    console.log('Current groups:', groups);
+  }, [groups]);
+
   const handleFollowGroup = async (groupId) => {
     try {
       if (!user) {
@@ -702,6 +727,9 @@ const HomePage = () => {
       });
     }
   };
+
+
+  
 
   const fetchFollowedGroups = async () => {
     try {
@@ -1209,6 +1237,7 @@ const HomePage = () => {
     }
   };
 
+
   return (
     <div>
       <nav className="navbar navbar-light bg-white py-2" style={{ borderBottom: '1px solid #E0E0E0' }}>
@@ -1707,7 +1736,6 @@ const HomePage = () => {
                       title: '',
                       content: '',
                       image: '',
-                        userId: user._id,
                       group: currentGroup._id
                     });
                     setShowCreatePost(true);
@@ -1776,8 +1804,7 @@ const HomePage = () => {
                       <option value="Education">Education</option>
                       <option value="Meetup">Meetup</option>
                       <option value="Job">Job</option>
-
-                      </select>
+                    </select>
                   </div>
                   <div className="mb-3">
                     <input
@@ -1796,20 +1823,58 @@ const HomePage = () => {
                       value={newPost.content}
                       onChange={(e) => setNewPost({...newPost, content: e.target.value})}
                       required
-                      rows={5}
+                      rows="4"
                     />
                   </div>
                   <div className="mb-3">
+                    <label className="form-label">Image</label>
                     <input
                       type="file"
                       className="form-control"
-                      onChange={handleFileSelect}
                       accept="image/*"
+                      onChange={handleFileSelect}
                     />
+                    {selectedFile && (
+                      <div className="mt-2">
+                        <img 
+                          src={URL.createObjectURL(selectedFile)} 
+                          alt="Preview" 
+                          style={{ maxWidth: '100%', maxHeight: '200px' }} 
+                        />
+                        <small className="text-muted d-block">
+                          Selected file: {selectedFile.name}
+                        </small>
+                      </div>
+                    )}
+                    <div className="mt-2">
+                      <small className="text-muted">
+                        Or provide an image URL:
+                      </small>
+                      <input
+                        type="text"
+                        className="form-control mt-1"
+                        placeholder="Image URL"
+                        value={newPost.image}
+                        onChange={(e) => setNewPost({...newPost, image: e.target.value})}
+                      />
+                    </div>
                   </div>
-                  <button type="submit" className="btn btn-primary">
-                    {editingPost ? 'Update Post' : 'Create Post'}
-                  </button>
+                  <div className="d-flex justify-content-end gap-2">
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setShowCreatePost(false);
+                        setEditingPost(null);
+                        setNewPost({ type: 'Article', title: '', content: '', image: '' });
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button type="submit" className="btn btn-primary">
+                      {editingPost ? 'Update Post' : 'Create Post'}
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>
@@ -1817,6 +1882,50 @@ const HomePage = () => {
         </div>
       )}
 
+      <button 
+        className="btn btn-outline-primary mb-3"
+        onClick={() => setShowFollowing(true)}
+      >
+        My Following ({followedGroups.length})
+      </button>
+
+      {showFollowing && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Groups I Follow</h5>
+                <button 
+                  type="button" 
+                  className="btn-close"
+                  onClick={() => setShowFollowing(false)}
+                />
+              </div>
+              <div className="modal-body">
+                {followedGroups.length > 0 ? (
+                  groups
+                    .filter(group => followedGroups.includes(group._id))
+                    .map(group => (
+                      <div key={group._id} className="card mb-2">
+                        <div className="card-body">
+                          <div className="d-flex justify-content-between align-items-center">
+                            <div>
+                              <h6 className="mb-0">{group.name}</h6>
+                              <small className="text-muted">{group.followers} followers</small>
+                            </div>
+                            <button className="btn btn-sm btn-outline-secondary" onClick={() => handleUnfollowGroup(group._id)}>Unfollow</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                ) : (
+                  <p className="text-muted text-center">You are not following any groups yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {renderAuthModal()}
     </div>
   );
