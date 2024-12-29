@@ -16,10 +16,33 @@ const getApiUrl = () => {
   if (process.env.NODE_ENV === 'production') {
     return 'https://intern-backend.onrender.com/api';
   }
+  // Try different ports in development
+  const ports = [5000, 5001, 5002, 5003];
+  const checkPort = async (port) => {
+    try {
+      const response = await fetch(`http://localhost:${port}/api/health`);
+      if (response.ok) {
+        return port;
+      }
+    } catch (error) {
+      return null;
+    }
+  };
+
+  // Default to 5000 if health check fails
   return 'http://localhost:5000/api';
 };
 
 const API_URL = getApiUrl();
+
+// Add health check endpoint
+axios.get(`${API_URL}/health`)
+  .then(response => {
+    console.log('Backend health check:', response.data);
+  })
+  .catch(error => {
+    console.error('Backend health check failed:', error);
+  });
 
 // Configure axios defaults
 axios.defaults.baseURL = API_URL;

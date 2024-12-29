@@ -25,16 +25,10 @@ console.log('Environment variables:', {
 
 
 app.use(cors({
-  origin: [
-    'https://intern-eight-ashen.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5000',
-    'http://localhost:5001'
-  ],
+  origin: ['http://localhost:3000', 'http://localhost:5000', 'http://localhost:5001'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
 
 // Enable pre-flight requests for all routes
@@ -43,12 +37,8 @@ app.options('*', cors());
 app.use(bodyParser.json());
 app.use(express.json());
 
-// Request logging middleware with CORS headers
+// Request logging middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://intern-eight-ashen.vercel.app');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
-  res.header('Access-Control-Allow-Credentials', 'true');
   console.log(`${req.method} ${req.url}`);
   next();
 });
@@ -57,6 +47,19 @@ app.use((req, res, next) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/images', express.static(path.join(__dirname, 'uploads/images')));
 app.use('/static', express.static(path.join(__dirname, '..', 'src', 'images')));
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads', 'images');
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ 
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
 
 // Test routes
 app.get('/test', (req, res) => {
@@ -81,35 +84,83 @@ app.get('/api/test', async (req, res) => {
 });
 
 // MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://ramji:vikas@cluster0.ln4g5.mongodb.net/test?retryWrites=true&w=majority";
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('MONGODB_URI is not defined in environment variables');
+  process.exit(1);
+}
 
 const mongooseOptions = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   retryWrites: true,
   w: 'majority',
   serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
+  socketTimeoutMS: 45000
 };
 
-// Add error handling for MongoDB connection
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-});
+// Connect to MongoDB
+const connectDB = async () => {
+  try {
+    await mongoose.connect(MONGODB_URI, mongooseOptions);
+    console.log('MongoDB connected successfully');
+    
+    // Create indexes if they don't exist
+    try {
+      // Drop existing indexes first to avoid duplicate key errors
+      await User.collection.dropIndexes();
+      await Post.collection.dropIndexes();
+      await Group.collection.dropIndexes();
+      
+      // Create new indexes
+      await User.collection.createIndex({ email: 1 }, { unique: true });
+      await Post.collection.createIndex({ createdAt: -1 });
+      await Group.collection.createIndex({ name: 1 });
+      
+      console.log('Database indexes created successfully');
+    } catch (indexError) {
+      console.warn('Warning: Error while managing indexes:', indexError.message);
+      // Continue even if index creation fails
+    }
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  }
+};
 
-mongoose.connection.on('connected', () => {
-  console.log('Connected to MongoDB Atlas');
-});
+// Start server only after MongoDB connects
+const startServer = async () => {
+  try {
+    await connectDB();
+    
+    const startServerOnPort = (port) => {
+      const server = app.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+      });
 
-mongoose.connection.on('disconnected', () => {
-  console.log('Disconnected from MongoDB Atlas');
-});
+      server.on('error', (error) => {
+        if (error.code === 'EADDRINUSE') {
+          console.log(`Port ${port} is in use, trying ${port + 1}`);
+          startServerOnPort(port + 1);
+        } else {
+          console.error('Server error:', error);
+          process.exit(1);
+        }
+      });
+    };
+
+    startServerOnPort(PORT);
+
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
 
 // API Routes
 // Posts Routes
 app.get('/api/posts', async (req, res) => {
   try {
-    console.log('Fetching posts...');
+    console.log('GET /api/posts - Fetching posts...');
     const posts = await Post.find()
       .populate({
         path: 'author',
@@ -117,14 +168,13 @@ app.get('/api/posts', async (req, res) => {
       })
       .sort({ createdAt: -1 });
     
-    console.log('Found posts:', posts.length);
-    console.log('First post:', posts[0]);
+    console.log(`GET /api/posts - Found ${posts.length} posts`);
     res.json(posts);
   } catch (error) {
-    console.error('Error fetching posts:', error);
+    console.error('GET /api/posts - Error:', error);
     res.status(500).json({ 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: 'Failed to fetch posts',
+      error: error.message 
     });
   }
 });
@@ -245,13 +295,19 @@ app.delete('/api/posts/:id', async (req, res) => {
 // Groups Routes
 app.get('/api/groups', async (req, res) => {
   try {
+    console.log('GET /api/groups - Fetching groups...');
     const groups = await Group.find()
       .populate('members', 'name email avatar')
       .sort({ createdAt: -1 });
+    
+    console.log(`GET /api/groups - Found ${groups.length} groups`);
     res.json(groups);
   } catch (error) {
-    console.error('Error fetching groups:', error);
-    res.status(500).json({ error: error.message });
+    console.error('GET /api/groups - Error:', error);
+    res.status(500).json({ 
+      message: 'Failed to fetch groups',
+      error: error.message 
+    });
   }
 });
 
@@ -390,16 +446,6 @@ app.post('/api/groups/:groupId/posts', async (req, res) => {
 });
 
 // User Routes
-app.post('/api/users', async (req, res) => {
-  try {
-    const user = new User(req.body);
-    await user.save();
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 app.get('/api/users/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id).populate('joinedGroups');
@@ -421,13 +467,22 @@ app.put('/api/users/:id', async (req, res) => {
 // Add this route to find user by email
 app.get('/api/users/email/:email', async (req, res) => {
   try {
+    console.log(`GET /api/users/email/${req.params.email} - Fetching user...`);
     const user = await User.findOne({ email: req.params.email });
+    
     if (!user) {
+      console.log(`GET /api/users/email/${req.params.email} - User not found`);
       return res.status(404).json({ message: 'User not found' });
     }
+    
+    console.log(`GET /api/users/email/${req.params.email} - User found`);
     res.json(user);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error(`GET /api/users/email/${req.params.email} - Error:`, error);
+    res.status(500).json({ 
+      message: 'Failed to fetch user',
+      error: error.message 
+    });
   }
 });
 
@@ -623,32 +678,36 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Server startup
-const startServer = async () => {
+app.post('/api/users', async (req, res) => {
   try {
-    await mongoose.connect(MONGODB_URI, mongooseOptions);
-    console.log('Connected to MongoDB Atlas successfully');
-
-    const server = app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+    console.log('POST /api/users - Creating user:', req.body);
+    const { name, email, avatar } = req.body;
+    
+    // Check if user already exists
+    let user = await User.findOne({ email });
+    if (user) {
+      console.log('POST /api/users - User already exists');
+      return res.status(400).json({ message: 'User already exists' });
+    }
+    
+    // Create new user
+    user = new User({
+      name,
+      email,
+      avatar,
+      password: Math.random().toString(36).slice(-8) // Generate random password
     });
-
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        const newPort = PORT + 1;
-        console.log(`Port ${PORT} is busy. Trying ${newPort}`);
-        app.listen(newPort, () => {
-          console.log(`Server is running on port ${newPort}`);
-        });
-      } else {
-        console.error('Server error:', err);
-      }
+    
+    await user.save();
+    console.log('POST /api/users - User created successfully');
+    res.status(201).json(user);
+  } catch (error) {
+    console.error('POST /api/users - Error:', error);
+    res.status(500).json({ 
+      message: 'Failed to create user',
+      error: error.message 
     });
-  } catch (err) {
-    console.error('Startup error:', err);
-    process.exit(1);
   }
-};
+});
 
-// Remove the duplicate mongoose.connect call and only use startServer
 startServer();
