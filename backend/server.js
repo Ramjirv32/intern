@@ -34,7 +34,12 @@ app.use(cors({
 }));
 
 // Enable pre-flight requests for all routes
-app.options('*', cors());
+app.use('*', cors("*",{
+  origin:'https://intern-backend.onrender.com/api/groups',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+}));
 
 app.use(bodyParser.json());
 app.use(express.json());
