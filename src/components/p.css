@@ -1,0 +1,33 @@
+.post-interactions {
+    padding: 1rem;
+    border-top: 1px solid #dee2e6;
+  }
+  
+  .comment-item {
+    transition: background-color 0.2s;
+  }
+  
+  .comment-item:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+  
+  .comment-content {
+    flex: 1;
+    background-color: #f8f9fa;
+    border-radius: 1rem;
+    padding: 0.5rem 1rem;
+  }
+  
+  .input-group {
+    border-radius: 1.5rem;
+    overflow: hidden;
+  }
+  
+  .input-group input {
+    border-right: none;
+  }
+  
+  .input-group button {
+    border-left: none;
+  }
+  

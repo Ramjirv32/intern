@@ -7,52 +7,20 @@ const app = express();
 const PORT = 4000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://ramji:vikas@cluster0.ln4g5.mongodb.net/test?retryWrites=true&w=majority&appName=Cluster0';
 
-// Update CORS configuration
+// Update CORS configuration to allow requests from React frontend
 app.use(cors({
   origin: 'http://localhost:5001',
   credentials: true
 }));
+
 app.use(express.json());
 
-
+// Connect to MongoDB
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB Atlas connected'))
   .catch(err => console.error('MongoDB connection error:', err));
-  const oneSchema = new mongoose.Schema({
-    id: { type: String, required: true },
-    value: { type: String, required: true }
-  });
-  
-  // Create the model for the 'one' collection
-  const One = mongoose.model('One', oneSchema, 'one');
-const postSchema = new mongoose.Schema({
-  title: String,
-  content: String,
-  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  comments: [{
-    text: String,
-    author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    createdAt: { type: Date, default: Date.now }
-  }],
-  createdAt: { type: Date, default: Date.now }
-});
 
-
-const commentSchema = new mongoose.Schema({
-  postId: { type: String, required: true },  // Post ID
-  text: { type: String, required: true },    // Comment text
-}, {
-  timestamps: true, // Automatically adds createdAt and updatedAt fields
-});
-
-// Specify the collection name as 'com'
-const Comment = mongoose.model('Comment', commentSchema, 'com');
-
-
-
-
-const Post = mongoose.model('Post', postSchema);
+// Define schemas and models
 
 app.post('/api/posts/:id/like', async (req, res) => {
   try {
@@ -70,6 +38,7 @@ app.post('/api/posts/:id/like', async (req, res) => {
   }
 });
 
+// POST route for unliking a post
 app.post('/api/posts/:id/unlike', async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -84,45 +53,26 @@ app.post('/api/posts/:id/unlike', async (req, res) => {
   }
 });
 
-app.post('/posts/:id/comments', async (req, res) => {
-  try {
-    const { id } = req.params;  
-
-    const post = await Post.findById(id).populate('comments.text', 'name');
-
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
-    }
-
-    // Return the comments for the post
-    res.json(post.comments);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-
-
-
+// POST route for submitting a comment
 app.post('/posts/comments', async (req, res) => {
-  console.log("received");
-
   try {
-    const { postId, text } = req.body;
+    const { postId, text, userId } = req.body;
 
-    if (!postId || !text) {
-      return res.status(400).json({ message: "Missing postId or text" });
+    if (!postId || !text || !userId) {
+      return res.status(400).json({ message: "Missing postId, text, or userId" });
     }
 
     const newComment = new Comment({
       postId: postId,
       text: text,
+      author: userId, // Assuming the userId is passed from the frontend
     });
-
 
     const result = await newComment.save();
 
-    console.log('Inserted Comment:', result);
+    const post = await Post.findById(postId);
+    post.comments.push(result);
+    await post.save();
 
     res.status(201).json(result);
   } catch (error) {
@@ -131,10 +81,22 @@ app.post('/posts/comments', async (req, res) => {
   }
 });
 
+// GET route for fetching comments of a post
+app.get('/api/posts/:id/comments', async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id).populate('comments.author', 'name');
+    
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
 
+    res.json(post.comments);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
-
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-

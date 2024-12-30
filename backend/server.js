@@ -62,6 +62,25 @@ app.use((err, req, res, next) => {
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
+// models/Post.js
+const postSchema = new mongoose.Schema({
+  // other post fields...
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  comments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }],
+  commentsCount: { type: Number, default: 0 }
+}, { timestamps: true });
+
+// models/Comment.js
+const commentSchema = new mongoose.Schema({
+  postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post', required: true },
+  text: { type: String, required: true },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
+}, { timestamps: true });
+
+
+const Comment = mongoose.model('Comment', commentSchema);
+
+// POST route for liking a post
 
 // Test routes
 app.get('/test', (req, res) => {
@@ -341,6 +360,190 @@ app.get('/api/groups/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Import at the top of your file
+
+
+// Middleware to validate ObjectId
+const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+// POST route for unliking a post
+app.post('/posts/:id/unlike', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    // Validate IDs
+    if (!validateObjectId(id) || !validateObjectId(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid post ID or user ID format' 
+      });
+    }
+
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Post not found' 
+      });
+    }
+
+    // Check if user has already liked the post
+    if (!post.likes.includes(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Post not liked by user' 
+      });
+    }
+
+    post.likes = post.likes.filter(id => id.toString() !== userId);
+    await post.save();
+
+    res.json({ 
+      success: true, 
+      likes: post.likes,
+      likesCount: post.likes.length 
+    });
+  } catch (error) {
+    console.error('Unlike error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+
+
+
+// GET route for fetching comments of a post
+app.get('/api/posts/:id/comments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10 } = req.query; // Add pagination
+
+    // Validate post ID
+    if (!validateObjectId(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid post ID format' 
+      });
+    }
+
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Post not found' 
+      });
+    }
+
+    // Fetch comments with pagination
+    const comments = await Comment.find({ postId: id })
+      .populate('author', 'name avatar')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    // Get total comments count
+    const total = await Comment.countDocuments({ postId: id });
+
+    res.json({
+      success: true,
+      comments,
+      pagination: {
+        current: Number(page),
+        total: Math.ceil(total / limit),
+        hasMore: page * limit < total
+      },
+      totalComments: total
+    });
+  } catch (error) {
+    console.error('Fetch comments error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+
+// Add a new route to like a post
+app.post('/posts/:id/like', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    // Validate IDs
+    if (!validateObjectId(id) || !validateObjectId(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid post ID or user ID format' 
+      });
+    }
+
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Post not found' 
+      });
+    }
+
+    // Check if user has already liked the post
+    if (post.likes.includes(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Post already liked by user' 
+      });
+    }
+
+    post.likes.push(userId);
+    await post.save();
+
+    res.json({ 
+      success: true, 
+      likes: post.likes,
+      likesCount: post.likes.length 
+    });
+  } catch (error) {
+    console.error('Like error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+
+app.post('/posts/comments', async (req, res) => {
+  try {
+    const { postId, text } = req.body;
+
+    const newComment = new Comment({
+      postId,
+      text: text.trim(),
+      createdAt: new Date()
+    });
+
+    await newComment.save();
+
+    res.status(200).json({
+      success: true
+    });
+  } catch (error) {
+    console.error('Comment creation error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+
+
+  
+
+
+
+
 
 app.post('/api/groups/join', async (req, res) => {
   try {

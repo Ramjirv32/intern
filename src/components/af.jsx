@@ -26,7 +26,6 @@ const getApiUrl = () => {
 };
 const postId = uuidv4(); 
 
-
 const API_URL = getApiUrl();
 
 axios.get(`${API_URL}/health`)
@@ -1029,7 +1028,8 @@ const HomePage = () => {
       </div>
     );
   };
-const API_URL2='http://localhost:4000'
+
+  const API_URL2='http://localhost:4000'
   const handleSignIn = async (e) => {
     e.preventDefault();
     
@@ -1151,98 +1151,35 @@ const API_URL2='http://localhost:4000'
       });
     }
   };
-
-
-
-
+  const [count, setCount] = useState(0); // Initialize state with 0
+  const[countu,setu]=useState(0);
+  const handleLike = async () => {
 
   
-
-  const handleLike = async (postId) => {
-    try {
-      const response = await axios.post(`${API_URL2}/posts/${postId}/like`, { userId: user._id });
-      setLikes(prevLikes => ({ ...prevLikes, [postId]: response.data.likes }));
-    } catch (error) {
-      console.error("Error liking post:", error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to like post'
-      });
-    }
+      setCount(count + 1);
   };
 
-  const handleUnlike = async (postId) => {
-    try {
-      const response = await axios.post(`${API_URL2}/posts/${postId}/unlike`, { userId: user._id });
-      setLikes(prevLikes => ({ ...prevLikes, [postId]: response.data.likes }));
-    } catch (error) {
-      console.error("Error unliking post:", error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to unlike post'
-      });
-    }
-  };
-  const fetchComments = async (postId) => {
-    setLl(true);
-    try {
-      const response = await axios.get(`${API_URL2}/posts/${postId}/comments`);
-      console.log("Fetched comments:", response.data);  // Log the response data
-      setComments(response.data);
-    } catch (error) {
-      console.error("Error fetching comments:", error);  // Log the error object
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to fetch comments'
-      });
-    } finally {
-      setLl(false);
-    }
-  };
-  
-
-  // Use effect to fetch comments when postId changes
-  useEffect(() => {
-    if (postId) {
-      fetchComments(postId);
-    }
-  }, [postId]);
+  const handleUnLike = async () => {
 
   
-  
+    setu(countu + 1);
+};
 
-  const handleCommentSubmit = async (postId, commentText) => {
-    try {
-      // Send the comment to the backend
-      const response = await axios.post(`${API_URL2}/posts/comments`, {
-        postId: postId,
-        text: commentText,
-      });
-  
-      // If comment is successfully added, update the comments in the state
-      if (response.status === 201) {
-        setComments(prevComments => ({
-          ...prevComments,
-          [postId]: [...(prevComments[postId] || []), response.data], // Add the new comment
-        }));
-      }
-    } catch (error) {
-      console.error("Error submitting comment:", error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to submit comment'
-      });
-    }
-  };
-  
 
+  const handleCommentSubmit = async (req,res) => {
+    Swal.fire({
+      icon: 'success',
+      title: 'Success!',
+      text: 'Comment added!',
+      timer: 2000,
+      showConfirmButton: false
+    });
+    
+    
+    }    
 
   return (
-    <div>
+    <>
       <nav className="navbar navbar-light bg-white py-2" style={{ borderBottom: '1px solid #E0E0E0' }}>
         <div className="container">
           <Link to="/" className="navbar-brand">
@@ -1527,354 +1464,325 @@ const API_URL2='http://localhost:4000'
                         <div className="d-flex align-items-center">
                           <div className="d-flex align-items-center me-4">
                             
-                          <button className="btn btn-link" onClick={() => handleLike(postId)}>
-                            <ThumbsUp size={18} /> Like ({likes[postId]?.length || 0})
-                          </button>
-                          <button className="btn btn-link" onClick={() => handleUnlike(postId)}>
-                            <ThumbsDown size={18} /> Unlike
-                          </button>
-                          <div>
-      <h3>Comments</h3>
-      {Array.isArray(comments) && comments.length > 0 ? (
-  <ul>
-    {comments.map((comment) => (
-      <li key={comment._id}>
-        <strong>{comment.author?.name || 'Anonymous'}</strong>
-        <p>{comment.text}</p>
-      </li>
-    ))}
-  </ul>
-) : (
-  <p>No comments yet.</p>
-)}
-
-    </div>
-
-            </div>
+                          <button className="btn btn-link" onClick={handleLike}>
+      <ThumbsUp size={18} /> {/* ThumbsUp icon */}
+      <span>{count}</span> {/* Display the count next to the icon */}
+    </button>
+    <button className="btn btn-link" onClick={handleUnLike}>
+      <ThumbsDown size={18} /> {/* ThumbsUp icon */}
+      <span>{countu}</span> {/* Display the count next to the icon */}
+    </button>
+                          </div>
                           <button className="btn" style={{ background: '#F1F3F5', padding: '8px 12px' }}>
                           <Share size={18} />
                           </button>
                         </div>
                         </div>
-                        {comments[post._id] && (
                         <div className="mt-3">
-                          <h6>Comments</h6>
-                          {comments[post._id].map(comment => (
-                          <div key={comment._id} className="mb-2">
-                            <strong>{comment.author.name}: </strong>
-                            {comment.text}
-                          </div>
+                          <form onSubmit={(e) => {
+                            e.preventDefault();
+                            const commentText = e.target.elements.comment.value;
+                            handleCommentSubmit(post._id, commentText);
+                            e.target.reset();
+                          }}>
+                            <div className="input-group">
+                              <input type="text" name="comment" className="form-control" placeholder="Write a comment..." required />
+                              <button type="submit" className="btn btn-primary">Post</button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  ))
+                  ) : (
+                    <div className="text-center py-5">
+                      <p className="text-muted">No posts available</p>
+                    </div>
+                  )}
+                  </div>
+
+                  <div className="col-md-4">
+                    <div className="location-input mb-4">
+                      <div className="input-group">
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Enter your location"
+                          style={{ border: '1px solid #B8B8B8' }}
+                        />
+                        <button className="btn btn-outline-secondary">✕</button>
+                      </div>
+                      <small className="text-muted mt-1" style={{ display: 'block' }}>
+                        Your location will help us serve better and extend a personalised experience.
+                      </small>
+                    </div>
+
+                    <div className="sidebar-search-container position-relative mb-4">
+                      <div className="position-relative">
+                        <input
+                          type="text"
+                          className="form-control rounded-pill bg-light border-0 ps-5"
+                          placeholder="Search for groups"
+                          onFocus={() => setShowSidebarGroups(true)}
+                          style={{ backgroundColor: '#F2F2F2', padding: '10px 20px' }}
+                        />
+                        <Search 
+                          className="position-absolute" 
+                          style={{ left: '15px', top: '50%', transform: 'translateY(-50%)' }} 
+                        />
+                      </div>
+
+                      {showSidebarGroups && (
+                        <div className="position-absolute w-100 bg-white rounded-3 mt-1"
+                          style={{
+                            zIndex: 1000,
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            padding: '16px',
+                            maxHeight: '400px',
+                            overflowY: 'auto'
+                          }}>
+                          <h6 className="mb-3">
+                            <span className="me-2">👥</span>
+                            RECOMMENDED GROUPS
+                          </h6>
+                          {groups.map(group => (
+                            <div key={group._id}
+                              className="d-flex justify-content-between align-items-center p-2"
+                              style={{
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                                ':hover': { backgroundColor: '#F8F9FA' }
+                              }}>
+                              <div className="d-flex align-items-center">
+                                <img
+                                  src={group.image}
+                                  alt={group.name}
+                                  className="rounded-circle me-2"
+                                  width="32"
+                                  height="32"
+                                />
+                                <div>
+                                  <div className="fw-medium">{group.name}</div>
+                                  <small className="text-muted">{group.followers} followers</small>
+                                </div>
+                              </div>
+                              <button 
+                                className="btn btn-sm btn-outline-primary rounded-pill"
+                                onClick={() => handleJoinGroup(group._id)}
+                              >
+                                Follow
+                              </button>
+                            </div>
                           ))}
-             <form onSubmit={(e) => {
-    e.preventDefault();
-    const commentText = e.target.elements.comment.value;
-    const postId = uuidv4(); 
-    handleCommentSubmit(postId, commentText);
-    e.target.reset();
-  }}>
-    <div className="input-group">
-      <input type="text" name="comment" className="form-control" placeholder="Write a comment..." required />
-      <button type="submit" className="btn btn-primary">Post</button>
-    </div>
-  </form>
-
-
-
-
                         </div>
                       )}
                     </div>
+
+                    <div className="mb-4">
+                      <h5>Available Groups</h5>
+                      {isLoading ? (
+                        <div className="text-center py-3">
+                          <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">Loading...</span>
+                          </div>
+                        </div>
+                      ) : error ? (
+                        <div className="alert alert-danger" role="alert">
+                          {error}
+                        </div>
+                      ) : groups && groups.length > 0 ? (
+                        groups.map(group => (
+                          <div key={group?._id || 'fallback-key'} className="card mb-2">
+                            <div className="card-body p-2 p-md-3">
+                              <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
+                                <div className="mb-2 mb-md-0">
+                                  <h6 className="mb-1">{group?.name || 'Unnamed Group'}</h6>
+                                  <small className="text-muted">
+                                    {group?.followers || 0} followers
+                                  </small>
+                                </div>
+                                <div className="d-flex gap-2 w-100 w-md-auto justify-content-between justify-content-md-end">
+                                  {!joinedGroups.includes(group?._id) ? (
+                                    <button 
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => group?._id && handleJoinGroup(group._id)}
+                                      disabled={!group?._id || !user}
+                                    >
+                                      Join Group
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      className="btn btn-sm btn-outline-danger"
+                                      onClick={() => group?._id && handleLeaveGroup(group._id)}
+                                      disabled={!group?._id || !user}
+                                    >
+                                      Leave Group
+                                    </button>
+                                  )}
+                                  {!followedGroups.includes(group?._id) ? (
+                                    <button 
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => group?._id && handleFollowGroup(group._id)}
+                                      disabled={!group?._id || !user}
+                                    >
+                                      Follow
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      className="btn btn-sm btn-outline-secondary"
+                                      onClick={() => group?._id && handleUnfollowGroup(group._id)}
+                                      disabled={!group?._id || !user}
+                                    >
+                                      Unfollow
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-muted text-center">No groups available</p>
+                      )}
+                    </div>
+
+                    {currentGroup && joinedGroups.includes(currentGroup._id) && (
+                      <div className="mb-4">
+                        <div className="d-flex justify-content-between align-items-center">
+                          <h4>{currentGroup.name}</h4>
+                          <button 
+                            className="btn btn-outline-danger"
+                            onClick={() => handleLeaveGroup(currentGroup._id)}
+                          >
+                            Leave Group
+                          </button>
+                        </div>
+                        <p className="text-muted">
+                          {currentGroup.followers} followers • {currentGroup.posts?.length || 0} posts
+                        </p>
+                        <button 
+                          className="btn btn-primary mb-3"
+                          onClick={() => {
+                            setNewPost({
+                              type: 'Article',
+                              title: '',
+                              content: '',
+                              image: '',
+                                userId: user._id,
+                              group: currentGroup._id
+                            });
+                            setShowCreatePost(true);
+                          }}
+                        >
+                          Write Post in {currentGroup.name}
+                        </button>
+                        
+                        <div className="group-posts mt-3">
+                          {currentGroup.posts?.map(post => (
+                            <div key={post._id} className="card mb-3">
+                              <div className="card-body">
+                                <h5 className="card-title">{post.title}</h5>
+                                <p className="card-text">{post.content}</p>
+                                {post.image && (
+                                  <img 
+                                    src={getImageUrl(post.image)} 
+                                    alt={post.title}
+                                    className="img-fluid mb-2"
+                                    style={{ maxHeight: '200px', objectFit: 'cover' }}
+                                  />
+                                )}
+                                <div className="d-flex justify-content-between align-items-center mt-2">
+                                  <small className="text-muted">
+                                    Posted by {post.author.name}
+                                  </small>
+                                  <small className="text-muted">
+                                    {new Date(post.createdAt).toLocaleDateString()}
+                                  </small>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-5">
-                <p className="text-muted">No posts available</p>
-              </div>
-            )}
-          </div>
-
-          <div className="col-md-4">
-            <div className="location-input mb-4">
-              <div className="input-group">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Enter your location"
-                  style={{ border: '1px solid #B8B8B8' }}
-                />
-                <button className="btn btn-outline-secondary">✕</button>
-              </div>
-              <small className="text-muted mt-1" style={{ display: 'block' }}>
-                Your location will help us serve better and extend a personalised experience.
-              </small>
-            </div>
-
-            <div className="sidebar-search-container position-relative mb-4">
-              <div className="position-relative">
-                <input
-                  type="text"
-                  className="form-control rounded-pill bg-light border-0 ps-5"
-                  placeholder="Search for groups"
-                  onFocus={() => setShowSidebarGroups(true)}
-                  style={{ backgroundColor: '#F2F2F2', padding: '10px 20px' }}
-                />
-                <Search 
-                  className="position-absolute" 
-                  style={{ left: '15px', top: '50%', transform: 'translateY(-50%)' }} 
-                />
               </div>
 
-              {showSidebarGroups && (
-                <div className="position-absolute w-100 bg-white rounded-3 mt-1"
-                  style={{
-                    zIndex: 1000,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    padding: '16px',
-                    maxHeight: '400px',
-                    overflowY: 'auto'
-                  }}>
-                  <h6 className="mb-3">
-                    <span className="me-2">👥</span>
-                    RECOMMENDED GROUPS
-                  </h6>
-                  {groups.map(group => (
-                    <div key={group._id}
-                      className="d-flex justify-content-between align-items-center p-2"
-                      style={{
-                        cursor: 'pointer',
-                        transition: 'background-color 0.2s',
-                        ':hover': { backgroundColor: '#F8F9FA' }
-                      }}>
-                      <div className="d-flex align-items-center">
-                        <img
-                          src={group.image}
-                          alt={group.name}
-                          className="rounded-circle me-2"
-                          width="32"
-                          height="32"
+              {showCreatePost && (
+                <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                  <div className="modal-dialog">
+                    <div className="modal-content">
+                      <div className="modal-header">
+                        <h5 className="modal-title">{editingPost ? 'Edit Post' : 'Create Post'}</h5>
+                        <button 
+                          type="button" 
+                          className="btn-close" 
+                          onClick={() => {
+                            setShowCreatePost(false);
+                            setEditingPost(null);
+                            setNewPost({ type: 'Article', title: '', content: '', image: '' });
+                          }}
                         />
-                        <div>
-                          <div className="fw-medium">{group.name}</div>
-                          <small className="text-muted">{group.followers} followers</small>
-                        </div>
                       </div>
-                      <button 
-                        className="btn btn-sm btn-outline-primary rounded-pill"
-                        onClick={() => handleJoinGroup(group._id)}
-                      >
-                        Follow
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <h5>Available Groups</h5>
-              {isLoading ? (
-                <div className="text-center py-3">
-                  <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                  </div>
-                </div>
-              ) : error ? (
-                <div className="alert alert-danger" role="alert">
-                  {error}
-                </div>
-              ) : groups && groups.length > 0 ? (
-                groups.map(group => (
-                  <div key={group?._id || 'fallback-key'} className="card mb-2">
-                    <div className="card-body p-2 p-md-3">
-                      <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
-                        <div className="mb-2 mb-md-0">
-                          <h6 className="mb-1">{group?.name || 'Unnamed Group'}</h6>
-                          <small className="text-muted">
-                            {group?.followers || 0} followers
-                          </small>
-                        </div>
-                        <div className="d-flex gap-2 w-100 w-md-auto justify-content-between justify-content-md-end">
-                          {!joinedGroups.includes(group?._id) ? (
-                            <button 
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => group?._id && handleJoinGroup(group._id)}
-                              disabled={!group?._id || !user}
+                      <div className="modal-body">
+                        <form onSubmit={handleSubmitPost}>
+                          <div className="mb-3">
+                            <select 
+                              className="form-select"
+                              value={newPost.type}
+                              onChange={(e) => setNewPost({...newPost, type: e.target.value})}
                             >
-                              Join Group
-                            </button>
-                          ) : (
-                            <button 
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => group?._id && handleLeaveGroup(group._id)}
-                              disabled={!group?._id || !user}
-                            >
-                              Leave Group
-                            </button>
-                          )}
-                          {!followedGroups.includes(group?._id) ? (
-                            <button 
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => group?._id && handleFollowGroup(group._id)}
-                              disabled={!group?._id || !user}
-                            >
-                              Follow
-                            </button>
-                          ) : (
-                            <button 
-                              className="btn btn-sm btn-outline-secondary"
-                              onClick={() => group?._id && handleUnfollowGroup(group._id)}
-                              disabled={!group?._id || !user}
-                            >
-                              Unfollow
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-muted text-center">No groups available</p>
-              )}
-            </div>
+                              <option value="Article">Article</option>
+                              <option value="Education">Education</option>
+                              <option value="Meetup">
 
-            {currentGroup && joinedGroups.includes(currentGroup._id) && (
-              <div className="mb-4">
-                <div className="d-flex justify-content-between align-items-center">
-                  <h4>{currentGroup.name}</h4>
-                  <button 
-                    className="btn btn-outline-danger"
-                    onClick={() => handleLeaveGroup(currentGroup._id)}
-                  >
-                    Leave Group
-                  </button>
-                </div>
-                <p className="text-muted">
-                  {currentGroup.followers} followers • {currentGroup.posts?.length || 0} posts
-                </p>
-                <button 
-                  className="btn btn-primary mb-3"
-                  onClick={() => {
-                    setNewPost({
-                      type: 'Article',
-                      title: '',
-                      content: '',
-                      image: '',
-                        userId: user._id,
-                      group: currentGroup._id
-                    });
-                    setShowCreatePost(true);
-                  }}
-                >
-                  Write Post in {currentGroup.name}
-                </button>
-                
-                <div className="group-posts mt-3">
-                  {currentGroup.posts?.map(post => (
-                    <div key={post._id} className="card mb-3">
-                      <div className="card-body">
-                        <h5 className="card-title">{post.title}</h5>
-                        <p className="card-text">{post.content}</p>
-                        {post.image && (
-                          <img 
-                            src={getImageUrl(post.image)} 
-                            alt={post.title}
-                            className="img-fluid mb-2"
-                            style={{ maxHeight: '200px', objectFit: 'cover' }}
-                          />
-                        )}
-                        <div className="d-flex justify-content-between align-items-center mt-2">
-                          <small className="text-muted">
-                            Posted by {post.author.name}
-                          </small>
-                          <small className="text-muted">
-                            {new Date(post.createdAt).toLocaleDateString()}
-                          </small>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+                              Meetup</option>
+                                              <option value="Job">Job</option>
+                                            </select>
+                                            </div>
+                                            <div className="mb-3">
+                                            <input
+                                              type="text"
+                                              className="form-control"
+                                              placeholder="Title"
+                                              value={newPost.title}
+                                              onChange={(e) => setNewPost({...newPost, title: e.target.value})}
+                                              required
+                                            />
+                                            </div>
+                                            <div className="mb-3">
+                                            <textarea
+                                              className="form-control"
+                                              placeholder="Content"
+                                              value={newPost.content}
+                                              onChange={(e) => setNewPost({...newPost, content: e.target.value})}
+                                              required
+                                              rows={5}
+                                            />
+                                            </div>
+                                            <div className="mb-3">
+                                            <input
+                                              type="file"
+                                              className="form-control"
+                                              onChange={handleFileSelect}
+                                              accept="image/*"
+                                            />
+                                            </div>
+                                            <button type="submit" className="btn btn-primary">
+                                            {editingPost ? 'Update Post' : 'Create Post'}
+                                            </button>
+                                          </form>
+                                          </div>
+                                        </div>
+                                        </div>
+                                      </div>
+                                      )}
 
-      {showCreatePost && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">{editingPost ? 'Edit Post' : 'Create Post'}</h5>
-                <button 
-                  type="button" 
-                  className="btn-close" 
-                  onClick={() => {
-                    setShowCreatePost(false);
-                    setEditingPost(null);
-                    setNewPost({ type: 'Article', title: '', content: '', image: '' });
-                  }}
-                />
-              </div>
-              <div className="modal-body">
-                <form onSubmit={handleSubmitPost}>
-                  <div className="mb-3">
-                    <select 
-                      className="form-select"
-                      value={newPost.type}
-                      onChange={(e) => setNewPost({...newPost, type: e.target.value})}
-                    >
-                      <option value="Article">Article</option>
-                      <option value="Education">Education</option>
-                      <option value="Meetup">Meetup</option>
-                      <option value="Job">Job</option>
+                                      {renderAuthModal()}
+                                    </>
+                                    );
+                              };
 
-                      </select>
-                  </div>
-                  <div className="mb-3">
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Title"
-                      value={newPost.title}
-                      onChange={(e) => setNewPost({...newPost, title: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <textarea
-                      className="form-control"
-                      placeholder="Content"
-                      value={newPost.content}
-                      onChange={(e) => setNewPost({...newPost, content: e.target.value})}
-                      required
-                      rows={5}
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <input
-                      type="file"
-                      className="form-control"
-                      onChange={handleFileSelect}
-                      accept="image/*"
-                    />
-                  </div>
-                  <button type="submit" className="btn btn-primary">
-                    {editingPost ? 'Update Post' : 'Create Post'}
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {renderAuthModal()}
-    </div>
-  );
-};
-
-export default HomePage;
-
+                              export default HomePage;
