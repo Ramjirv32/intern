@@ -50,7 +50,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static file middleware
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/images', express.static(path.join(__dirname, 'uploads/images')));
 app.use('/static', express.static(path.join(__dirname, '..', 'src', 'images')));
@@ -394,7 +394,7 @@ app.post('/posts/:id/unlike', async (req, res) => {
       });
     }
 
-    // Check if user has already liked the post
+    
     if (!post.likes.includes(userId)) {
       return res.status(400).json({ 
         success: false, 
